@@ -158,7 +158,7 @@ include_directories(
 add_executable(offboard_node src/offboard_node.cpp)
 target_link_libraries(offboard_node ${catkin_LIBRARIES})
 
-add_executable(offboard_position src/offboard_node_back.cpp)
+add_executable(offboard_position src/offboard_traverse.cpp)
 target_link_libraries(offboard_position ${catkin_LIBRARIES})
 
 add_executable(offboard_rosbag src/waypoint_tracker.cpp)

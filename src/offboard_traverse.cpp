@@ -41,7 +41,7 @@ int main(int argc, char **argv)
     geometry_msgs::PoseStamped pose;
     pose.pose.position.x = 0;
     pose.pose.position.y = 0;
-    pose.pose.position.z = 2;
+    pose.pose.position.z = 1;
 
     //send a few setpoints before starting
     for(int i = 100; ros::ok() && i > 0; --i){
@@ -92,8 +92,8 @@ int main(int argc, char **argv)
         while(ros::ok()) {
            if( (ros::Time::now() - last_request > ros::Duration(5.0))) break;
            
-           pose.pose.position.x = 2;
-           pose.pose.position.y = 2;
+           pose.pose.position.x = 1;
+           pose.pose.position.y = 1;
            local_pos_pub.publish(pose);
            ROS_INFO("SUCCESS1");
            ros::spinOnce();

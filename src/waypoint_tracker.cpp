@@ -61,6 +61,11 @@ private:
         state_connected = msg->connected;
     }
 
+    /**
+     * @brief 从rosbag中的topic /mavros/setpoint_position/local读取waypoints保存到Vetor
+     * 
+     * @param bag_file 
+     */
     void read_waypoints_from_bag(const std::string& bag_file)
     {
         rosbag::Bag bag;
@@ -93,9 +98,10 @@ private:
 int main(int argc, char **argv)
 {
     ros::init(argc, argv, "waypoint_tracker");
+    ros::NodeHandle nh;
     std::string rosbag_path;
     nh.param<std::string>("rosbag_path", rosbag_path, "/default/path/to/rosbag.bag");
-    WaypointTracker tracker(bag_path);
+    WaypointTracker tracker(rosbag_path);
     tracker.spin();
     return 0;
 }
