@@ -58,12 +58,12 @@ int main(int argc, char **argv)
     ros::Time last_request = ros::Time::now();
     while(ros::ok() ){
        
-       if( !current_state.armed ){
-                if( arming_client.call(arm_cmd) &&
-                    arm_cmd.response.success){
-                    ROS_INFO("Vehicle armed");
-                }
+        if( !current_state.armed ){
+            if( arming_client.call(arm_cmd) &&
+                arm_cmd.response.success){
+                ROS_INFO("Vehicle armed");
             }
+        }
         if( current_state.mode != "OFFBOARD"){
             if( set_mode_client.call(offb_set_mode) &&
                 offb_set_mode.response.mode_sent){

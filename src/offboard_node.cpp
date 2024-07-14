@@ -37,8 +37,9 @@ int main(int argc, char **argv)
     }
 
     geometry_msgs::PoseStamped pose;
-    pose.pose.position.x = 0;
-    pose.pose.position.y = 0;
+    // 仅设置起飞高度
+    // pose.pose.position.x = 0;
+    // pose.pose.position.y = 0;
     pose.pose.position.z = 1.0;
 
     //send a few setpoints before starting
