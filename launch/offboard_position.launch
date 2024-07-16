@@ -1,0 +1,18 @@
+<launch>
+    <!-- 定义参数及其默认值 -->
+    <arg name="takeoff_x" default="0.0"/>
+    <arg name="takeoff_y" default="0.0"/>
+    <arg name="takeoff_z" default="1.0"/>
+    <arg name="patrol_x" default="1.0"/>
+    <arg name="patrol_y" default="1.0"/>
+
+    <!-- 启动 offboard_traverse 节点 -->
+    <node name="offboard_traverse" pkg="offboard_pkg" type="offboard_traverse" output="screen">
+        <!-- 传递参数到节点 -->
+        <param name="takeoff_x" value="$(arg takeoff_x)"/>
+        <param name="takeoff_y" value="$(arg takeoff_y)"/>
+        <param name="takeoff_z" value="$(arg takeoff_z)"/>
+        <param name="patrol_x" value="$(arg patrol_x)"/>
+        <param name="patrol_y" value="$(arg patrol_y)"/>
+    </node>
+</launch>

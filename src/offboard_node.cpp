@@ -27,6 +27,14 @@ int main(int argc, char **argv)
     ros::ServiceClient set_mode_client = nh.serviceClient<mavros_msgs::SetMode>
             ("mavros/set_mode");
 
+    
+
+    double takeoff_position_x = 0.0, takeoff_position_y = 0.0, takeoff_position_z = 1.0;
+
+    nh.param("takeoff_position_x", takeoff_position_x, 0.0);
+    nh.param("takeoff_position_y", takeoff_position_y, 0.0);
+    nh.param("takeoff_position_z", takeoff_position_z, 1.0);
+
     //the setpoint publishing rate MUST be faster than 2Hz
     ros::Rate rate(20.0);
 
@@ -36,15 +44,15 @@ int main(int argc, char **argv)
         rate.sleep();
     }
 
-    geometry_msgs::PoseStamped pose;
+    geometry_msgs::PoseStamped takeoff_positon;
     // 仅设置起飞高度
-    // pose.pose.position.x = 0;
-    // pose.pose.position.y = 0;
-    pose.pose.position.z = 1.0;
+    takeoff_positon.pose.position.x = takeoff_position_x;
+    takeoff_positon.pose.position.y = takeoff_position_y;
+    takeoff_positon.pose.position.z = takeoff_position_z;
 
     //send a few setpoints before starting
     for(int i = 100; ros::ok() && i > 0; --i){
-        local_pos_pub.publish(pose);
+        local_pos_pub.publish(takeoff_positon);
         ros::spinOnce();
         rate.sleep();
     }
@@ -76,7 +84,7 @@ int main(int argc, char **argv)
             }
         }
 
-        local_pos_pub.publish(pose);
+        local_pos_pub.publish(takeoff_positon);
 
         ros::spinOnce();
         rate.sleep();

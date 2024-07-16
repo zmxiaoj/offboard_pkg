@@ -29,6 +29,18 @@ int main(int argc, char **argv)
             ("mavros/set_mode");
     //ros::Publisher velocity_pub = nh.advertise<geometry_msgs::TwistStamped>
            // ("mavros/setpoint_velocity/cmd_vel", 10);
+
+
+    double takeoff_x = 0.0, takeoff_y = 0.0, takeoff_z = 1.0,
+           patrol_x = 1.0, patrol_y = 1.0;
+    
+    nh.param("takeoff_x", takeoff_x, 0.0);
+    nh.param("takeoff_y", takeoff_y, 0.0);
+    nh.param("takeoff_z", takeoff_z, 1.0);
+    nh.param("patrol_x",  patrol_x,  1.0);
+    nh.param("patrol_y",  patrol_y,  1.0);
+    
+
     //the setpoint publishing rate MUST be faster than 2Hz
     ros::Rate rate(20.0);
  
@@ -38,14 +50,17 @@ int main(int argc, char **argv)
         rate.sleep();
     }
  
-    geometry_msgs::PoseStamped pose;
-    pose.pose.position.x = 0;
-    pose.pose.position.y = 0;
-    pose.pose.position.z = 1;
+    geometry_msgs::PoseStamped takeoff_pose, patrol_pose;
+    takeoff_pose.pose.position.x = takeoff_x;
+    takeoff_pose.pose.position.y = takeoff_y;
+    takeoff_pose.pose.position.z = takeoff_z;
+    patrol_pose.pose.position.x  = patrol_x;
+    patrol_pose.pose.position.y  = patrol_y;
+    patrol_pose.pose.position.z  = takeoff_z;
 
     //send a few setpoints before starting
     for(int i = 100; ros::ok() && i > 0; --i){
-        local_pos_pub.publish(pose);
+        local_pos_pub.publish(takeoff_pose);
         ros::spinOnce();
         rate.sleep();
     }
@@ -80,24 +95,20 @@ int main(int argc, char **argv)
         last_request = ros::Time::now();
         while(ros::ok()) {
             if( (ros::Time::now() - last_request > ros::Duration(5.0))) break;
-           
-            pose.pose.position.x = 0;
-            pose.pose.position.y = 0;
-            local_pos_pub.publish(pose);
+
+            local_pos_pub.publish(takeoff_pose);
             ROS_INFO("SUCCESS0");
             ros::spinOnce();
             rate.sleep();
         }
         last_request = ros::Time::now();
         while(ros::ok()) {
-           if( (ros::Time::now() - last_request > ros::Duration(5.0))) break;
-           
-           pose.pose.position.x = 1;
-           pose.pose.position.y = 1;
-           local_pos_pub.publish(pose);
-           ROS_INFO("SUCCESS1");
-           ros::spinOnce();
-           rate.sleep();
+            if( (ros::Time::now() - last_request > ros::Duration(5.0))) break;
+        
+                local_pos_pub.publish(patrol_pose);
+                ROS_INFO("SUCCESS1");
+                ros::spinOnce();
+                rate.sleep();
        }
        ROS_INFO_STREAM("state="<<state);
     }
