@@ -43,13 +43,13 @@ int main(int argc, char **argv)
     ros::Rate rate(20.0), rate_waypoint(100.0);
 
     /**
-     * @brief 从rosbag中的topic /vrpn_client_node/P450/pose读取waypoints保存到Vetor
+     * @brief 从rosbag中的topic /vrpn_client_node/A1_12/pose读取waypoints保存到Vetor
      */
     rosbag::Bag bag;
     bag.open(rosbag_path, rosbag::bagmode::Read);
 
     std::vector<std::string> topics;
-    topics.push_back("/vrpn_client_node/P450/pose");
+    topics.push_back("/vrpn_client_node/A1_12/pose");
     // topics.push_back("/mavros/vision_pose/pose");
 
     rosbag::View view(bag, rosbag::TopicQuery(topics));
@@ -57,7 +57,7 @@ int main(int argc, char **argv)
     for (const rosbag::MessageInstance& m : view)
     {
         geometry_msgs::PoseStamped::ConstPtr p = m.instantiate<geometry_msgs::PoseStamped>();
-        if (p != NULL && p->pose.position.z > 0.5)
+        if (p != NULL && p->pose.position.z > 0.4)
         // if (p != NULL)
             waypoints.push_back(*p);
     }
