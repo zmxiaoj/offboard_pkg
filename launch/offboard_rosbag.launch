@@ -1,10 +1,9 @@
 <launch>
     <!-- 定义一个参数，允许从命令行接收rosbag路径 -->
     <arg name="rosbag_path" default="/home/amov/0713.bag"/>
-
-    <!-- 使用传入的参数设置rosbag路径参数 -->
-    <param name="rosbag_path" value="$(arg rosbag_path)" />
-    
     <!-- 启动waypoint_tracker节点 -->
-    <node pkg="offboard_pkg" type="offboard_rosbag" name="waypoint_tracker_node" output="screen" />
+    <node pkg="offboard_pkg" type="offboard_rosbag" name="waypoint_tracker" output="screen" >
+        <!-- 使用传入的参数设置rosbag路径参数 -->
+        <param name="rosbag_path" value="$(arg rosbag_path)" />
+    </node>
 </launch>

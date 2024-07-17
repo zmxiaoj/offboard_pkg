@@ -17,7 +17,7 @@ void state_cb(const mavros_msgs::State::ConstPtr& msg){
 int main(int argc, char **argv)
 {
     ros::init(argc, argv, "position");
-    ros::NodeHandle nh;
+    ros::NodeHandle nh("~");
  
     ros::Subscriber state_sub = nh.subscribe<mavros_msgs::State>
             ("mavros/state", 10, state_cb);
@@ -32,15 +32,17 @@ int main(int argc, char **argv)
 
 
     double takeoff_x = 0.0, takeoff_y = 0.0, takeoff_z = 1.0,
-           patrol_x = 1.0, patrol_y = 1.0;
+           patrol_x = 1.0,  patrol_y = 1.0,  patrol_z = 1.0;
     
     nh.param("takeoff_x", takeoff_x, 0.0);
     nh.param("takeoff_y", takeoff_y, 0.0);
     nh.param("takeoff_z", takeoff_z, 1.0);
     nh.param("patrol_x",  patrol_x,  1.0);
     nh.param("patrol_y",  patrol_y,  1.0);
+    nh.param("patrol_z",  patrol_z,  1.0);
     
-
+    ROS_INFO("takeoff_x: %f, takeoff_y: %f, takeoff_z: %f", takeoff_x, takeoff_y, takeoff_z);
+    ROS_INFO("patrol_x: %f, patrol_y: %f, patrol_z: %f", patrol_x, patrol_y, patrol_z);
     //the setpoint publishing rate MUST be faster than 2Hz
     ros::Rate rate(20.0);
  
@@ -56,7 +58,7 @@ int main(int argc, char **argv)
     takeoff_pose.pose.position.z = takeoff_z;
     patrol_pose.pose.position.x  = patrol_x;
     patrol_pose.pose.position.y  = patrol_y;
-    patrol_pose.pose.position.z  = takeoff_z;
+    patrol_pose.pose.position.z  = patrol_z;
 
     //send a few setpoints before starting
     for(int i = 100; ros::ok() && i > 0; --i){
@@ -97,7 +99,7 @@ int main(int argc, char **argv)
             if( (ros::Time::now() - last_request > ros::Duration(5.0))) break;
 
             local_pos_pub.publish(takeoff_pose);
-            ROS_INFO("SUCCESS0");
+            ROS_INFO("STATE0");
             ros::spinOnce();
             rate.sleep();
         }
@@ -106,11 +108,11 @@ int main(int argc, char **argv)
             if( (ros::Time::now() - last_request > ros::Duration(5.0))) break;
         
                 local_pos_pub.publish(patrol_pose);
-                ROS_INFO("SUCCESS1");
+                ROS_INFO("STATE1");
                 ros::spinOnce();
                 rate.sleep();
        }
-       ROS_INFO_STREAM("state="<<state);
+       ROS_INFO_STREAM("Num od state="<<state);
     }
 
     offb_set_mode.request.custom_mode = "AUTO.LAND";

@@ -16,7 +16,7 @@ void state_cb(const mavros_msgs::State::ConstPtr& msg){
 int main(int argc, char **argv)
 {
     ros::init(argc, argv, "offboard_node");
-    ros::NodeHandle nh;
+    ros::NodeHandle nh("~");
 
     ros::Subscriber state_sub = nh.subscribe<mavros_msgs::State>
             ("mavros/state", 10, state_cb);
@@ -34,6 +34,8 @@ int main(int argc, char **argv)
     nh.param("takeoff_position_x", takeoff_position_x, 0.0);
     nh.param("takeoff_position_y", takeoff_position_y, 0.0);
     nh.param("takeoff_position_z", takeoff_position_z, 1.0);
+
+    ROS_INFO("takeoff_position_x: %f, takeoff_position_y: %f, takeoff_position_z: %f", takeoff_position_x, takeoff_position_y, takeoff_position_z);
 
     //the setpoint publishing rate MUST be faster than 2Hz
     ros::Rate rate(20.0);
@@ -88,6 +90,13 @@ int main(int argc, char **argv)
 
         ros::spinOnce();
         rate.sleep();
+    }
+
+    offb_set_mode.request.custom_mode = "AUTO.LAND";
+    if (set_mode_client.call(offb_set_mode) && offb_set_mode.response.mode_sent)
+    {
+        ROS_INFO("AUTO.LAND enabled");
+        last_request = ros::Time::now();
     }
 
     return 0;

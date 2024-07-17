@@ -19,7 +19,7 @@ void state_cb(const mavros_msgs::State::ConstPtr& msg){
 int main(int argc, char **argv)
 {
     ros::init(argc, argv, "position");
-    ros::NodeHandle nh;
+    ros::NodeHandle nh("~");
  
     ros::Subscriber state_sub = nh.subscribe<mavros_msgs::State>
             ("mavros/state", 10, state_cb);
@@ -32,14 +32,15 @@ int main(int argc, char **argv)
 
     std::string rosbag_path;
     nh.param<std::string>("rosbag_path", rosbag_path, "/home/zmxj/code/Datasets/0713.bag");
-    
+    ROS_INFO("rosbag path: %s", rosbag_path.c_str());
+
     std::vector<geometry_msgs::PoseStamped> waypoints;
     size_t current_waypoint = 0;
 
     //ros::Publisher velocity_pub = nh.advertise<geometry_msgs::TwistStamped>
            // ("mavros/setpoint_velocity/cmd_vel", 10);
     //the setpoint publishing rate MUST be faster than 2Hz
-    ros::Rate rate(20.0), rate_waypoint(50.0);
+    ros::Rate rate(20.0), rate_waypoint(100.0);
 
     /**
      * @brief 从rosbag中的topic /vrpn_client_node/P450/pose读取waypoints保存到Vetor
@@ -116,9 +117,13 @@ int main(int argc, char **argv)
 
     // follow waypoints
     ROS_INFO("Start follow waypoints");
+    // pub waypoint per 10 Hz
+    int info_frequency = 10;
     while (ros::ok() && current_waypoint < waypoints.size()) {
         if (current_waypoint < waypoints.size()) {
             local_pos_pub.publish(waypoints[current_waypoint]);
+            if (current_waypoint % info_frequency == 0)
+                ROS_INFO("Pub waypoint: [%.2f, %.2f, %.2f]", waypoints[current_waypoint].pose.position.x, waypoints[current_waypoint].pose.position.y, waypoints[current_waypoint].pose.position.z);
             current_waypoint++;
         }
         ros::spinOnce();
