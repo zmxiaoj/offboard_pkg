@@ -31,8 +31,12 @@ int main(int argc, char **argv)
             ("mavros/set_mode");
 
     std::string rosbag_path;
-    nh.param<std::string>("rosbag_path", rosbag_path, "/home/zmxj/code/Datasets/0713.bag");
+    nh.param<std::string>("rosbag_path", rosbag_path, "/home/comb/0720.bag");
     ROS_INFO("rosbag path: %s", rosbag_path.c_str());
+    // 从参数服务器读入current_position_x和current_position_y
+    double current_position_x = 0.0, current_position_y = 0.0;
+    nh.param("current_position_x", current_position_x, 0.23);
+    nh.param("current_position_y", current_position_y, 8.10);
 
     std::vector<geometry_msgs::PoseStamped> waypoints;
     size_t current_waypoint = 0;
@@ -74,7 +78,15 @@ int main(int argc, char **argv)
     // 根据waypoints中第一个点的高度设置起飞点并发送100个
     geometry_msgs::PoseStamped takeoff_pose;
     // takeoff_pose.pose.position.z = waypoints[current_waypoint].pose.position.z;
-    takeoff_pose.pose = waypoints[current_waypoint].pose;
+    // offset
+    double offset_x = current_position_x - waypoints[current_waypoint].pose.position.x;
+    double offset_y = current_position_y - waypoints[current_waypoint].pose.position.y;
+
+    ROS_INFO("offset_x: %.3f, offset_y: %.3f", offset_x, offset_y);
+
+    takeoff_pose.pose.position.x = waypoints[current_waypoint].pose.position.x + offset_x;
+    takeoff_pose.pose.position.y = waypoints[current_waypoint].pose.position.y + offset_y;
+    takeoff_pose.pose.position.z = waypoints[current_waypoint].pose.position.z;
     current_waypoint += 1;
 
     // send a few setpoints before starting
@@ -85,7 +97,7 @@ int main(int argc, char **argv)
         rate.sleep();
     }
     // 输出takeoff_pose
-    ROS_INFO("Takeoff pose: [%.2f, %.2f, %.2f]", takeoff_pose.pose.position.x, takeoff_pose.pose.position.y, takeoff_pose.pose.position.z);
+    ROS_INFO("Takeoff pose: [%.3f, %.3f, %.3f]", takeoff_pose.pose.position.x, takeoff_pose.pose.position.y, takeoff_pose.pose.position.z);
     
 
     mavros_msgs::SetMode offb_set_mode;
@@ -121,9 +133,13 @@ int main(int argc, char **argv)
     int info_frequency = 10;
     while (ros::ok() && current_waypoint < waypoints.size()) {
         if (current_waypoint < waypoints.size()) {
-            local_pos_pub.publish(waypoints[current_waypoint]);
+            geometry_msgs::PoseStamped waypoint_pose;
+            waypoint_pose.pose.position.x = waypoints[current_waypoint].pose.position.x + offset_x;
+            waypoint_pose.pose.position.y = waypoints[current_waypoint].pose.position.y + offset_y;
+            waypoint_pose.pose.position.z = waypoints[current_waypoint].pose.position.z;
+            local_pos_pub.publish(waypoint_pose);
             if (current_waypoint % info_frequency == 0)
-                ROS_INFO("Pub waypoint: [%.2f, %.2f, %.2f]", waypoints[current_waypoint].pose.position.x, waypoints[current_waypoint].pose.position.y, waypoints[current_waypoint].pose.position.z);
+                ROS_INFO("Pub waypoint: [%.3f, %.3f, %.3f]", waypoint_pose.pose.position.x, waypoint_pose.pose.position.y, waypoint_pose.pose.position.z);
             current_waypoint++;
         }
         ros::spinOnce();
