@@ -31,7 +31,7 @@ int main(int argc, char **argv)
             ("/mavros/set_mode");
 
     std::string rosbag_path;
-    nh.param<std::string>("rosbag_path", rosbag_path, "/home/comb/0720.bag");
+    nh.param<std::string>("rosbag_path", rosbag_path, "/home/bhtn/0720.bag");
     ROS_INFO("rosbag path: %s", rosbag_path.c_str());
     // 从参数服务器读入current_position_x和current_position_y
     double current_position_x = 0.0, current_position_y = 0.0;
@@ -53,7 +53,7 @@ int main(int argc, char **argv)
     bag.open(rosbag_path, rosbag::bagmode::Read);
 
     std::vector<std::string> topics;
-    topics.push_back("/vrpn_client_node/A1_12/pose");
+    topics.push_back("/vrpn_client_node/A1_11/pose");
     // topics.push_back("/mavros/vision_pose/pose");
 
     rosbag::View view(bag, rosbag::TopicQuery(topics));
