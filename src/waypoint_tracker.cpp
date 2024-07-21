@@ -2,6 +2,7 @@
 #include <rosbag/bag.h>
 #include <rosbag/view.h>
 #include <std_msgs/Float64.h>
+#include <std_msgs/String.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <mavros_msgs/State.h>
 #include <mavros_msgs/PositionTarget.h>
@@ -12,8 +13,22 @@
 
 
 mavros_msgs::State current_state;
-void state_cb(const mavros_msgs::State::ConstPtr& msg){
+void state_cb(const mavros_msgs::State::ConstPtr& msg)
+{
     current_state = *msg;
+}
+
+std::string flight_state = "follow_waypoint";
+
+void flight_command_cb(const std_msgs::String::ConstPtr& msg) 
+{
+    std::string flight_command = msg->data.c_str();
+    ROS_INFO("Received command: [%s]", flight_command);
+
+    if (flight_command == "circle") {
+        flight_state = "forward_to_circle";
+    }
+
 }
 
 int main(int argc, char **argv)
@@ -23,6 +38,8 @@ int main(int argc, char **argv)
  
     ros::Subscriber state_sub = nh.subscribe<mavros_msgs::State>
             ("/mavros/state", 10, state_cb);
+    ros::Subscriber flight_command_sub = nh.subscribe<std_msgs::String>
+            ("/flight_command", 10, flight_command_cb);
     ros::Publisher local_pos_pub = nh.advertise<geometry_msgs::PoseStamped>
             ("/mavros/setpoint_position/local", 10);
     ros::ServiceClient arming_client = nh.serviceClient<mavros_msgs::CommandBool>
@@ -38,13 +55,13 @@ int main(int argc, char **argv)
     nh.param("current_position_x", current_position_x, 0.23);
     nh.param("current_position_y", current_position_y, 8.10);
 
-    std::vector<geometry_msgs::PoseStamped> waypoints;
-    size_t current_waypoint = 0;
+    std::vector<geometry_msgs::PoseStamped> waypoints, waypoints_circle;
+    size_t current_waypoint = 0, current_waypoint_circle = 0;
 
     //ros::Publisher velocity_pub = nh.advertise<geometry_msgs::TwistStamped>
            // ("mavros/setpoint_velocity/cmd_vel", 10);
     //the setpoint publishing rate MUST be faster than 2Hz
-    ros::Rate rate(20.0), rate_waypoint(100.0);
+    ros::Rate rate(20.0), rate_waypoint(120.0);
 
     /**
      * @brief 从rosbag中的topic /vrpn_client_node/A1_12/pose读取waypoints保存到Vetor
@@ -58,16 +75,17 @@ int main(int argc, char **argv)
 
     rosbag::View view(bag, rosbag::TopicQuery(topics));
 
-    for (const rosbag::MessageInstance& m : view)
-    {
+    for (const rosbag::MessageInstance& m : view) {
         geometry_msgs::PoseStamped::ConstPtr p = m.instantiate<geometry_msgs::PoseStamped>();
-        if (p != NULL && p->pose.position.z > 0.4)
-        // if (p != NULL)
+        if (p != NULL && p->pose.position.z > 0.4 && p->pose.position.x < 14.2)
             waypoints.push_back(*p);
+        else if (p != NULL && p->pose.position.z > 0.4 && p->pose.position.x >= 15.2)
+            waypoints_circle.push_back(*p);
     }
     bag.close();
-    ROS_INFO("Read waypoints from ROSbag, number of waypoints: %lu", waypoints.size());
-
+    ROS_INFO("Read waypoints from ROSbag");
+    ROS_INFO("Number of waypoints: %lu", waypoints.size());
+    ROS_INFO("Number of waypoints_circle: %lu", waypoints_circle.size());
     // wait for FCU connection
     while(ros::ok() && current_state.connected){
         ros::spinOnce();
@@ -138,9 +156,11 @@ int main(int argc, char **argv)
     ROS_INFO("Start follow waypoints");
     // pub waypoint per 10 Hz
     int info_frequency = 10;
-    while (ros::ok() && current_waypoint < waypoints.size()) {
+    int wiat_frequency_cnt = 0; 
+    geometry_msgs::PoseStamped waypoint_pose, last_waypoint_pose;
+    while (ros::ok() && flight_state == "follow_waypoint") {
+        
         if (current_waypoint < waypoints.size()) {
-            geometry_msgs::PoseStamped waypoint_pose;
             waypoint_pose.pose.position.x = waypoints[current_waypoint].pose.position.x + offset_x;
             waypoint_pose.pose.position.y = waypoints[current_waypoint].pose.position.y + offset_y;
             waypoint_pose.pose.position.z = waypoints[current_waypoint].pose.position.z;
@@ -151,16 +171,50 @@ int main(int argc, char **argv)
             waypoint_pose.pose.orientation.y = waypoints[current_waypoint].pose.orientation.y;
             waypoint_pose.pose.orientation.z = waypoints[current_waypoint].pose.orientation.z;
             
+            last_waypoint_pose = waypoint_pose;
             local_pos_pub.publish(waypoint_pose);
             if (current_waypoint % info_frequency == 0)
                 ROS_INFO("Pub waypoint: [%.3f, %.3f, %.3f]", waypoint_pose.pose.position.x, waypoint_pose.pose.position.y, waypoint_pose.pose.position.z);
             current_waypoint++;
+        }
+        else {
+            local_pos_pub.publish(last_waypoint_pose);
+            if (wiat_frequency_cnt % info_frequency == 0)
+                ROS_INFO("Reach the last waypoint: [%.3f, %.3f, %.3f]", last_waypoint_pose.pose.position.x, last_waypoint_pose.pose.position.y, last_waypoint_pose.pose.position.z);
+            wiat_frequency_cnt += 1;
         }
         ros::spinOnce();
         rate_waypoint.sleep();
     }
     ROS_INFO("Finished follow waypoints");
 
+    geometry_msgs::PoseStamped circle_waypoint_pose;
+    while (ros::ok() && flight_state == "forward_to_circle") {
+        
+        if (current_waypoint_circle < waypoints_circle.size()) {
+            circle_waypoint_pose.pose.position.x = waypoints_circle[current_waypoint_circle].pose.position.x + offset_x;
+            circle_waypoint_pose.pose.position.y = waypoints_circle[current_waypoint_circle].pose.position.y + offset_y;
+            circle_waypoint_pose.pose.position.z = waypoints_circle[current_waypoint_circle].pose.position.z;
+
+            // orientation
+            circle_waypoint_pose.pose.orientation.w = waypoints_circle[current_waypoint_circle].pose.orientation.w;
+            circle_waypoint_pose.pose.orientation.x = waypoints_circle[current_waypoint_circle].pose.orientation.x;
+            circle_waypoint_pose.pose.orientation.y = waypoints_circle[current_waypoint_circle].pose.orientation.y;
+            circle_waypoint_pose.pose.orientation.z = waypoints_circle[current_waypoint_circle].pose.orientation.z;
+
+            local_pos_pub.publish(circle_waypoint_pose);
+            if (current_waypoint_circle % info_frequency == 0)
+                ROS_INFO("Pub waypoint: [%.3f, %.3f, %.3f]", circle_waypoint_pose.pose.position.x, circle_waypoint_pose.pose.position.y, circle_waypoint_pose.pose.position.z);
+            current_waypoint_circle++;
+        }
+        else {
+            ROS_INFO("Finish forward to circle");
+            break;
+        }
+    
+        ros::spinOnce();
+        rate_waypoint.sleep();
+    }
     // land
     offb_set_mode.request.custom_mode = "AUTO.LAND";
     if( set_mode_client.call(offb_set_mode) && offb_set_mode.response.mode_sent)
