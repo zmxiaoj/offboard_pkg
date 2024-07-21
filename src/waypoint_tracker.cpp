@@ -70,7 +70,7 @@ int main(int argc, char **argv)
     bag.open(rosbag_path, rosbag::bagmode::Read);
 
     std::vector<std::string> topics;
-    topics.push_back("/vrpn_client_node/A1_12/pose");
+    topics.push_back("/vrpn_client_node/A1_11/pose");
     // topics.push_back("/mavros/vision_pose/pose");
 
     rosbag::View view(bag, rosbag::TopicQuery(topics));
