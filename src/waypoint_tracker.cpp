@@ -22,13 +22,13 @@ int main(int argc, char **argv)
     ros::NodeHandle nh("~");
  
     ros::Subscriber state_sub = nh.subscribe<mavros_msgs::State>
-            ("mavros/state", 10, state_cb);
+            ("/mavros/state", 10, state_cb);
     ros::Publisher local_pos_pub = nh.advertise<geometry_msgs::PoseStamped>
-            ("mavros/setpoint_position/local", 10);
+            ("/mavros/setpoint_position/local", 10);
     ros::ServiceClient arming_client = nh.serviceClient<mavros_msgs::CommandBool>
-            ("mavros/cmd/arming");
+            ("/mavros/cmd/arming");
     ros::ServiceClient set_mode_client = nh.serviceClient<mavros_msgs::SetMode>
-            ("mavros/set_mode");
+            ("/mavros/set_mode");
 
     std::string rosbag_path;
     nh.param<std::string>("rosbag_path", rosbag_path, "/home/comb/0720.bag");
@@ -87,6 +87,13 @@ int main(int argc, char **argv)
     takeoff_pose.pose.position.x = waypoints[current_waypoint].pose.position.x + offset_x;
     takeoff_pose.pose.position.y = waypoints[current_waypoint].pose.position.y + offset_y;
     takeoff_pose.pose.position.z = waypoints[current_waypoint].pose.position.z;
+
+    // orientation
+    takeoff_pose.pose.orientation.w = waypoints[current_waypoint].pose.orientation.w;
+    takeoff_pose.pose.orientation.x = waypoints[current_waypoint].pose.orientation.x;
+    takeoff_pose.pose.orientation.y = waypoints[current_waypoint].pose.orientation.y;
+    takeoff_pose.pose.orientation.z = waypoints[current_waypoint].pose.orientation.z;
+    
     current_waypoint += 1;
 
     // send a few setpoints before starting
@@ -137,6 +144,13 @@ int main(int argc, char **argv)
             waypoint_pose.pose.position.x = waypoints[current_waypoint].pose.position.x + offset_x;
             waypoint_pose.pose.position.y = waypoints[current_waypoint].pose.position.y + offset_y;
             waypoint_pose.pose.position.z = waypoints[current_waypoint].pose.position.z;
+
+            // orientation
+            waypoint_pose.pose.orientation.w = waypoints[current_waypoint].pose.orientation.w;
+            waypoint_pose.pose.orientation.x = waypoints[current_waypoint].pose.orientation.x;
+            waypoint_pose.pose.orientation.y = waypoints[current_waypoint].pose.orientation.y;
+            waypoint_pose.pose.orientation.z = waypoints[current_waypoint].pose.orientation.z;
+            
             local_pos_pub.publish(waypoint_pose);
             if (current_waypoint % info_frequency == 0)
                 ROS_INFO("Pub waypoint: [%.3f, %.3f, %.3f]", waypoint_pose.pose.position.x, waypoint_pose.pose.position.y, waypoint_pose.pose.position.z);
