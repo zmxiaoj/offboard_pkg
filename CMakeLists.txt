@@ -154,6 +154,12 @@ include_directories(
 #   ${catkin_LIBRARIES}
 # )
 
+## utils 
+
+add_executable(pos_estimator src/utils/pos_estimator.cpp)
+target_link_libraries(pos_estimator ${catkin_LIBRARIES})
+
+## offboard_example
 
 add_executable(offboard_node src/offboard_node.cpp)
 target_link_libraries(offboard_node ${catkin_LIBRARIES})
