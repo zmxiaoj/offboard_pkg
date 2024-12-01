@@ -76,7 +76,7 @@ Eigen::Quaternionf drone_pose_quaternion;
 // ********** Functions Declaration **********
 
 void send_to_fcu();
-void pub_state();
+
 inline float get_time_diff(const ros::Time &begin_time);
 
 // ********** Callback Functions **********
@@ -85,7 +85,7 @@ inline float get_time_diff(const ros::Time &begin_time);
 void mocap_cb(const geometry_msgs::PoseStamped::ConstPtr &msg);
 void slam_cb(const geometry_msgs::PoseStamped::ConstPtr &msg);
 void gazebo_cb(const nav_msgs::Odometry::ConstPtr &msg);
-void timer_cb(const ros::TimerEvent &e);
+void pub_state_cb(const ros::TimerEvent &e);
 // state information
 void state_cb(const mavros_msgs::State::ConstPtr &msg);
 void extened_state_cb(const mavros_msgs::ExtendedState::ConstPtr &msg);
@@ -141,10 +141,7 @@ int main(int argc, char** argv)
     trajectory_pub = nh.advertise<nav_msgs::Path>("/visualization/trajectory", 10);
 
     // timer for print message show node is running correctly
-    ros::Timer timer = nh.createTimer(ros::Duration(10.0), timer_cb);
-
-    // class for communication with fcu through mavros [fcu->mavros->pos_estimator]
-    // state_from_mavros _state_from_mavros;
+    ros::Timer pub_state_timer = nh.createTimer(ros::Duration(1.0), pub_state_cb);
 
     ros::Rate rate(rate_hz);
 
@@ -154,9 +151,6 @@ int main(int argc, char** argv)
 
         // send position&pose information to fcu
         send_to_fcu();
-
-        // publish states
-        pub_state();
 
         rate.sleep();
     }
@@ -209,15 +203,18 @@ void send_to_fcu()
     }
     // 3-others
     // else if (input_source == 3) {
-
+        
     // }
 
     vision_pose.header.stamp = ros::Time::now();
     vision_pub.publish(vision_pose);
 }
 
-void pub_state()
+void pub_state_cb(const ros::TimerEvent& e)
 {
+    ROS_INFO("--------------------");
+    ROS_INFO("Program is running.");
+    ROS_INFO("Current time: %f", e.current_real.toSec());
     // out put drone state
     ROS_INFO("--------------------");
     ROS_INFO("Drone State: ");
@@ -357,12 +354,6 @@ void gazebo_cb(const nav_msgs::Odometry::ConstPtr &msg)
     else {
         ROS_WARN("Wrong Gazebo Frame ID");
     }
-}
-
-void timer_cb(const ros::TimerEvent &e)
-{
-    ROS_INFO("Program is running.");
-    ROS_INFO("Current time: %f", e.current_real.toSec());
 }
 
 void state_cb(const mavros_msgs::State::ConstPtr &msg)
