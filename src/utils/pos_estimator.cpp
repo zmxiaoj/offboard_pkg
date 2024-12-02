@@ -55,23 +55,23 @@ bool _odom_valid = false;
 std::vector<geometry_msgs::PoseStamped> history_trajectory_queue;
 
 // mocap position&pose  
-Eigen::Vector3f mocap_position; 
-Eigen::Quaternionf mocap_pose_quaternion;
+Eigen::Vector3f mocap_position = Eigen::Vector3f::Zero();
+Eigen::Quaternionf mocap_pose_quaternion = Eigen::Quaternionf::Identity();
 // slam position&pose
-Eigen::Vector3f slam_position; 
-Eigen::Quaternionf slam_pose_quaternion;
+Eigen::Vector3f slam_position = Eigen::Vector3f::Zero();
+Eigen::Quaternionf slam_pose_quaternion = Eigen::Quaternionf::Identity();
 // gazebo position&pose
-Eigen::Vector3f gazebo_position; 
-Eigen::Quaternionf gazebo_pose_quaternion;
+Eigen::Vector3f gazebo_position = Eigen::Vector3f::Zero(); 
+Eigen::Quaternionf gazebo_pose_quaternion = Eigen::Quaternionf::Identity();
 
 // drone state
 bool drone_connected = false;
 bool drone_armed = false;
 std::string drone_mode;
 bool drone_landed = false;
-Eigen::Vector3f drone_position;
-Eigen::Vector3f drone_velocity;
-Eigen::Quaternionf drone_pose_quaternion;
+Eigen::Vector3f drone_position = Eigen::Vector3f::Zero();
+Eigen::Vector3f drone_velocity = Eigen::Vector3f::Zero();
+Eigen::Quaternionf drone_pose_quaternion = Eigen::Quaternionf::Identity();
 
 // ********** Functions Declaration **********
 
@@ -95,14 +95,14 @@ void velocity_cb(const geometry_msgs::TwistStamped::ConstPtr& msg);
 
 int main(int argc, char** argv)
 {
-    ros::init(argc, argv, "pos_estimator");
+    ros::init(argc, argv, "pos_estimator_node");
     ros::NodeHandle nh("~");
     std::cout << "pos_estimator node started!" << std::endl;
 
     // load paramters from server
     nh.param<int>("input_source", input_source, 0);
     nh.param<int>("mocap_frame_type", mocap_frame_type, 0);
-    nh.param<std::string>("rigid_body_name", rigid_body_name, "UAV");
+    nh.param<std::string>("rigid_body_name", rigid_body_name, "uav");
     nh.param<float>("rate_hz", rate_hz, 20);
     nh.param<float>("offset_x", pos_offset[0], 0);
     nh.param<float>("offset_y", pos_offset[1], 0);
@@ -206,6 +206,13 @@ void send_to_fcu()
         
     // }
 
+    // output the position&pose information from different sources
+    // ROS_INFO("--------------------");
+    // ROS_INFO_STREAM("Send to FCU: ");
+    // ROS_INFO_STREAM("Position: " << vision_pose.pose.position.x << " " << vision_pose.pose.position.y << " " << vision_pose.pose.position.z);
+    // ROS_INFO_STREAM("Quaternion[x y z w]: " << vision_pose.pose.orientation.x << " " << vision_pose.pose.orientation.y << " " << vision_pose.pose.orientation.z << " " << vision_pose.pose.orientation.w);
+    // ROS_INFO("--------------------");
+
     vision_pose.header.stamp = ros::Time::now();
     vision_pub.publish(vision_pose);
 }
@@ -214,7 +221,6 @@ void pub_state_cb(const ros::TimerEvent& e)
 {
     ROS_INFO("--------------------");
     ROS_INFO("Program is running.");
-    ROS_INFO("Current time: %f", e.current_real.toSec());
     // out put drone state
     ROS_INFO("--------------------");
     ROS_INFO("Drone State: ");
@@ -238,6 +244,11 @@ void pub_state_cb(const ros::TimerEvent& e)
         ROS_INFO("Drone is not landed.");
     }
     ROS_INFO("--------------------");
+    ROS_INFO_STREAM("Position&Pose Information from PX4");
+    ROS_INFO_STREAM("Drone Position: " << drone_position.transpose());
+    ROS_INFO_STREAM("Drone Velocity: " << drone_velocity.transpose());
+    ROS_INFO_STREAM("Drone Pose Quaternion: " << drone_pose_quaternion.x() << " " << drone_pose_quaternion.y() << " " << drone_pose_quaternion.z() << " " << drone_pose_quaternion.w());
+    ROS_INFO("--------------------");
 
     // publish drone odometry for RVIZ visualization
     nav_msgs::Odometry drone_odom;
@@ -245,9 +256,9 @@ void pub_state_cb(const ros::TimerEvent& e)
     drone_odom.header.frame_id = "world";
     drone_odom.child_frame_id = "base_link";
 
-    drone_odom.pose.pose.position.x = drone_position[0];
-    drone_odom.pose.pose.position.y = drone_position[1];
-    drone_odom.pose.pose.position.z = drone_position[2];
+    drone_odom.pose.pose.position.x = drone_position.x();
+    drone_odom.pose.pose.position.y = drone_position.y();
+    drone_odom.pose.pose.position.z = drone_position.z();
 
     // height should not be less than 0
     if (drone_odom.pose.pose.position.z <= 0) {
@@ -259,9 +270,9 @@ void pub_state_cb(const ros::TimerEvent& e)
     drone_odom.pose.pose.orientation.z = drone_pose_quaternion.z();
     drone_odom.pose.pose.orientation.w = drone_pose_quaternion.w();
 
-    drone_odom.twist.twist.linear.x = drone_velocity[0];
-    drone_odom.twist.twist.linear.y = drone_velocity[1];
-    drone_odom.twist.twist.linear.z = drone_velocity[2];
+    drone_odom.twist.twist.linear.x = drone_position.x();
+    drone_odom.twist.twist.linear.y = drone_position.y();
+    drone_odom.twist.twist.linear.z = drone_position.z();
 
     odom_pub.publish(drone_odom);
 
@@ -269,9 +280,9 @@ void pub_state_cb(const ros::TimerEvent& e)
     geometry_msgs::PoseStamped drone_pose;
     drone_pose.header.stamp = ros::Time::now();
     drone_pose.header.frame_id = "world";
-    drone_pose.pose.position.x = drone_position[0];
-    drone_pose.pose.position.y = drone_position[1];
-    drone_pose.pose.position.z = drone_position[2];
+    drone_pose.pose.position.x = drone_position.x();
+    drone_pose.pose.position.y = drone_position.y();
+    drone_pose.pose.position.z = drone_position.z();
 
     drone_pose.pose.orientation.x = drone_pose_quaternion.x();
     drone_pose.pose.orientation.y = drone_pose_quaternion.y();
