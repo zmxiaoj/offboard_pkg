@@ -10,13 +10,13 @@
 
 
 mavros_msgs::State current_state;
-void state_cb(const mavros_msgs::State::ConstPtr& msg){
-    current_state = *msg;
-}
+
+void state_cb(const mavros_msgs::State::ConstPtr& msg);
+
  
 int main(int argc, char **argv)
 {
-    ros::init(argc, argv, "position");
+    ros::init(argc, argv, "traverse_node");
     ros::NodeHandle nh("~");
  
     ros::Subscriber state_sub = nh.subscribe<mavros_msgs::State>
@@ -47,7 +47,7 @@ int main(int argc, char **argv)
     ros::Rate rate(20.0);
  
     // wait for FCU connection
-    while(ros::ok() && current_state.connected){
+    while (ros::ok() && current_state.connected) {
         ros::spinOnce();
         rate.sleep();
     }
@@ -61,7 +61,7 @@ int main(int argc, char **argv)
     patrol_pose.pose.position.z  = patrol_z;
 
     //send a few setpoints before starting
-    for(int i = 100; ros::ok() && i > 0; --i){
+    for (int i = 100; ros::ok() && i > 0; --i) {
         local_pos_pub.publish(takeoff_pose);
         ros::spinOnce();
         rate.sleep();
@@ -73,30 +73,30 @@ int main(int argc, char **argv)
     arm_cmd.request.value = true;
     int state = 3;
     ros::Time last_request = ros::Time::now();
-    while(ros::ok() ){
+    while (ros::ok()) {
        
-        if( !current_state.armed ){
-            if( arming_client.call(arm_cmd) &&
-                arm_cmd.response.success){
+        if (!current_state.armed) {
+            if (arming_client.call(arm_cmd) && arm_cmd.response.success) {
                 ROS_INFO("Vehicle armed");
             }
         }
-        if( current_state.mode != "OFFBOARD"){
-            if( set_mode_client.call(offb_set_mode) &&
-                offb_set_mode.response.mode_sent){
+        if (current_state.mode != "OFFBOARD") {
+            if (set_mode_client.call(offb_set_mode) && offb_set_mode.response.mode_sent) {
                 ROS_INFO("Offboard enabled");
             }
         } 
  
-        if( (ros::Time::now() - last_request > ros::Duration(5.0))) break;
+        if ((ros::Time::now() - last_request > ros::Duration(5.0))) 
+            break;
  
         ros::spinOnce();
         rate.sleep();
     }
-    while(state--) {
+    while (state--) {
         last_request = ros::Time::now();
-        while(ros::ok()) {
-            if( (ros::Time::now() - last_request > ros::Duration(5.0))) break;
+        while (ros::ok()) {
+            if (ros::Time::now() - last_request > ros::Duration(5.0)) 
+                break;
 
             local_pos_pub.publish(takeoff_pose);
             ROS_INFO("STATE0");
@@ -104,23 +104,28 @@ int main(int argc, char **argv)
             rate.sleep();
         }
         last_request = ros::Time::now();
-        while(ros::ok()) {
-            if( (ros::Time::now() - last_request > ros::Duration(5.0))) break;
+        while (ros::ok()) {
+            if (ros::Time::now() - last_request > ros::Duration(5.0)) 
+                break;
         
-                local_pos_pub.publish(patrol_pose);
-                ROS_INFO("STATE1");
-                ros::spinOnce();
-                rate.sleep();
+            local_pos_pub.publish(patrol_pose);
+            ROS_INFO("STATE1");
+            ros::spinOnce();
+            rate.sleep();
        }
-       ROS_INFO_STREAM("Num od state="<<state);
+       ROS_INFO_STREAM("Num od state=" << state);
     }
 
     offb_set_mode.request.custom_mode = "AUTO.LAND";
-    if( set_mode_client.call(offb_set_mode) && offb_set_mode.response.mode_sent)
-    {
+    if (set_mode_client.call(offb_set_mode) && offb_set_mode.response.mode_sent) {
         ROS_INFO("AUTO.LAND enabled");
         last_request = ros::Time::now();
     }
  
     return 0;
+}
+
+void state_cb(const mavros_msgs::State::ConstPtr& msg)
+{
+    current_state = *msg;
 }

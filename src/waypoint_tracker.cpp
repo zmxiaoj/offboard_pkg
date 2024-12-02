@@ -9,16 +9,13 @@
 #include <mavros_msgs/SetMode.h>
 #include <mavros_msgs/State.h>	
 
-
-
 mavros_msgs::State current_state;
-void state_cb(const mavros_msgs::State::ConstPtr& msg){
-    current_state = *msg;
-}
+
+void state_cb(const mavros_msgs::State::ConstPtr& msg);
 
 int main(int argc, char **argv)
 {
-    ros::init(argc, argv, "position");
+    ros::init(argc, argv, "waypoint_tracker_node");
     ros::NodeHandle nh("~");
  
     ros::Subscriber state_sub = nh.subscribe<mavros_msgs::State>
@@ -54,8 +51,7 @@ int main(int argc, char **argv)
 
     rosbag::View view(bag, rosbag::TopicQuery(topics));
 
-    for (const rosbag::MessageInstance& m : view)
-    {
+    for (const rosbag::MessageInstance& m : view) {
         geometry_msgs::PoseStamped::ConstPtr p = m.instantiate<geometry_msgs::PoseStamped>();
         if (p != NULL && p->pose.position.z > 0.5)
         // if (p != NULL)
@@ -65,7 +61,7 @@ int main(int argc, char **argv)
     ROS_INFO("Read waypoints from ROSbag, number of waypoints: %lu", waypoints.size());
 
     // wait for FCU connection
-    while(ros::ok() && current_state.connected){
+    while (ros::ok() && current_state.connected) {
         ros::spinOnce();
         rate.sleep();
     }
@@ -95,21 +91,20 @@ int main(int argc, char **argv)
     ros::Time last_request = ros::Time::now();
     // convert to offboard&arm
     ROS_INFO("Convert to OFFBOARD");
-    while(ros::ok() ){
-        if(!current_state.armed){
-            if( arming_client.call(arm_cmd) &&
-                arm_cmd.response.success){
+    while (ros::ok()) {
+        if (!current_state.armed) {
+            if (arming_client.call(arm_cmd) && arm_cmd.response.success) {
                 ROS_INFO("Vehicle armed");
             }
         }
         if(current_state.mode != "OFFBOARD"){
-            if( set_mode_client.call(offb_set_mode) &&
-                offb_set_mode.response.mode_sent){
+            if (set_mode_client.call(offb_set_mode) && offb_set_mode.response.mode_sent) {
                 ROS_INFO("Offboard enabled");
             }
         } 
         local_pos_pub.publish(takeoff_pose);
-        if( (ros::Time::now() - last_request > ros::Duration(10.0))) break;
+        if (ros::Time::now() - last_request > ros::Duration(10.0)) 
+            break;
         ros::spinOnce();
         rate.sleep();
     }
@@ -133,12 +128,16 @@ int main(int argc, char **argv)
 
     // land
     offb_set_mode.request.custom_mode = "AUTO.LAND";
-    if( set_mode_client.call(offb_set_mode) && offb_set_mode.response.mode_sent)
-    {
+    if (set_mode_client.call(offb_set_mode) && offb_set_mode.response.mode_sent) {
         ROS_INFO("AUTO.LAND enabled");
         last_request = ros::Time::now();
     }
     ROS_INFO("Finish Mission");
 
     return 0;
+}
+
+void state_cb(const mavros_msgs::State::ConstPtr& msg)
+{
+    current_state = *msg;
 }

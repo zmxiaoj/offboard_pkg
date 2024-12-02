@@ -1,17 +1,14 @@
-// :: 表示作用域，如果想在类的外部引用静态成员函数，或在类的外部定义成员函数都要用到
-
 
 #include <ros/ros.h>
-#include <geometry_msgs/PoseStamped.h>	//发布的消息体对应的头文件，该消息体的类型为geometry_msgs：：PoseStamped 本地位置
-#include <mavros_msgs/CommandBool.h>
-#include <mavros_msgs/SetMode.h>
-#include <mavros_msgs/State.h>		//订阅的消息体的头文件，该消息体的类型为mavros_msgs：：State
+#include <geometry_msgs/PoseStamped.h>	//发布的消息体对应的头文件，该消息体的类型为geometry_msgs::PoseStamped 本地位置
+#include <mavros_msgs/CommandBool.h>  //CommandBool服务的头文件，该服务的类型为mavros_msgs::CommandBool
+#include <mavros_msgs/SetMode.h>  //SetMode服务的头文件，该服务的类型为mavros_msgs::SetMode
+#include <mavros_msgs/State.h>  //订阅的消息体的头文件，该消息体的类型为mavros_msgs::State
 
 mavros_msgs::State current_state;
 
-void state_cb(const mavros_msgs::State::ConstPtr& msg){
-    current_state = *msg;
-}
+void state_cb(const mavros_msgs::State::ConstPtr& msg);
+
 
 int main(int argc, char **argv)
 {
@@ -41,7 +38,7 @@ int main(int argc, char **argv)
     ros::Rate rate(20.0);
 
     // wait for FCU connection
-    while(ros::ok() && !current_state.connected){
+    while (ros::ok() && !current_state.connected) {
         ros::spinOnce();
         rate.sleep();
     }
@@ -53,7 +50,7 @@ int main(int argc, char **argv)
     takeoff_positon.pose.position.z = takeoff_position_z;
 
     //send a few setpoints before starting
-    for(int i = 100; ros::ok() && i > 0; --i){
+    for (int i = 100; ros::ok() && i > 0; --i) {
         local_pos_pub.publish(takeoff_positon);
         ros::spinOnce();
         rate.sleep();
@@ -67,19 +64,16 @@ int main(int argc, char **argv)
 
     ros::Time last_request = ros::Time::now();
 
-    while(ros::ok()){
-        if( current_state.mode != "OFFBOARD" &&
-            (ros::Time::now() - last_request > ros::Duration(5.0))){
-            if( set_mode_client.call(offb_set_mode) &&
-                offb_set_mode.response.mode_sent){
+    while (ros::ok()) {
+        if (current_state.mode != "OFFBOARD" &&
+            (ros::Time::now() - last_request > ros::Duration(5.0))) {
+            if (set_mode_client.call(offb_set_mode) && offb_set_mode.response.mode_sent) { 
                 ROS_INFO("Offboard enabled");
             }
             last_request = ros::Time::now();
         } else {
-            if( !current_state.armed &&
-                (ros::Time::now() - last_request > ros::Duration(5.0))){
-                if( arming_client.call(arm_cmd) &&
-                    arm_cmd.response.success){
+            if (!current_state.armed && (ros::Time::now() - last_request > ros::Duration(5.0))) {
+                if (arming_client.call(arm_cmd) && arm_cmd.response.success) {
                     ROS_INFO("Vehicle armed");
                 }
                 last_request = ros::Time::now();
@@ -93,11 +87,15 @@ int main(int argc, char **argv)
     }
 
     offb_set_mode.request.custom_mode = "AUTO.LAND";
-    if (set_mode_client.call(offb_set_mode) && offb_set_mode.response.mode_sent)
-    {
+    if (set_mode_client.call(offb_set_mode) && offb_set_mode.response.mode_sent) {
         ROS_INFO("AUTO.LAND enabled");
         last_request = ros::Time::now();
     }
 
     return 0;
+}
+
+void state_cb(const mavros_msgs::State::ConstPtr& msg)
+{
+    current_state = *msg;
 }
