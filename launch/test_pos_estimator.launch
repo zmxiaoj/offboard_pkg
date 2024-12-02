@@ -1,0 +1,29 @@
+<launch>
+    <!-- 启动 mocap_fake 节点 -->
+    <node pkg="offboard_pkg" type="fake_mocap" name="fake_mocap_node" output="screen" launch-prefix="gnome-terminal --tab -- zsh -c"/>
+
+    <!-- pos_estimator 参数设置 -->
+    <!-- 0-mocap 1-slam 2-gazebo 3-others -->
+    <arg name="input_source" default="0"/>
+    <!-- 0-Z_up 1-Y_up -->
+    <arg name="mocap_frame_type" default="0"/>
+    <arg name="rigid_body_name" default="uav"/>
+    <arg name="rate_hz" default="20"/>
+    <arg name="offset_x" default="0"/>
+    <arg name="offset_y" default="0"/>
+    <arg name="offset_z" default="0"/>
+    <arg name="offset_yaw" default="0"/>
+    <!-- 启动 pos_estimator 节点 -->
+    <node pkg="offboard_pkg" type="pos_estimator" name="pos_estimator_node" output="screen" launch-prefix="gnome-terminal --tab -- zsh -c">
+        <!-- 传递参数到节点 -->
+        <param name="input_source" value="$(arg input_source)"/>
+        <param name="mocap_frame_type" value="$(arg mocap_frame_type)"/>
+        <param name="rigid_body_name" value="$(arg rigid_body_name)"/>
+        <param name="rate_hz" value="$(arg rate_hz)"/>
+        <param name="offset_x" value="$(arg offset_x)"/>
+        <param name="offset_y" value="$(arg offset_y)"/>
+        <param name="offset_z" value="$(arg offset_z)"/>
+        <param name="offset_yaw" value="$(arg offset_yaw)"/>
+    </node>
+
+</launch>

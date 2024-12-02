@@ -159,6 +159,9 @@ include_directories(
 add_executable(pos_estimator src/utils/pos_estimator.cpp)
 target_link_libraries(pos_estimator ${catkin_LIBRARIES})
 
+add_executable(fake_mocap src/utils/fake_mocap.cpp)
+target_link_libraries(fake_mocap ${catkin_LIBRARIES})
+
 ## offboard_example
 
 add_executable(offboard_node src/offboard_node.cpp)
