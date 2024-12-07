@@ -103,7 +103,7 @@ int main(int argc, char** argv)
     nh.param<int>("input_source", input_source, 0);
     nh.param<int>("mocap_frame_type", mocap_frame_type, 0);
     nh.param<std::string>("rigid_body_name", rigid_body_name, "uav");
-    nh.param<float>("rate_hz", rate_hz, 20);
+    nh.param<float>("rate_hz", rate_hz, 50);
     nh.param<float>("offset_x", pos_offset[0], 0);
     nh.param<float>("offset_y", pos_offset[1], 0);
     nh.param<float>("offset_z", pos_offset[2], 0);

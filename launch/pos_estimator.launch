@@ -2,6 +2,7 @@
 
     <!-- mavros 参数设置 -->
 	<arg name="fcu_url" default="/dev/ttyTHS0:921600" />
+    <!-- <arg name="gcs_url" default="udp://:14550@192.168.xx.xx" /> -->
 	<arg name="gcs_url" default="" />
 	<arg name="tgt_system" default="1" />
 	<arg name="tgt_component" default="1" />
@@ -17,30 +18,6 @@
         <param name="log_output" value="$(arg log_output)"/>
         <param name="fcu_protocol" value="$(arg fcu_protocol)"/>
         <param name="fcu_protrespawn_mavrosocol" value="$(arg respawn_mavros)"/>
-    </node>
-
-    <!-- pos_estimator 参数设置 -->
-    <!-- 0-mocap 1-slam 2-gazebo 3-others -->
-    <arg name="input_source" default="0"/>
-    <!-- 0-Z_up 1-Y_up -->
-    <arg name="mocap_frame_type" default="0"/>
-    <arg name="rigid_body_name" default="uav"/>
-    <arg name="rate_hz" default="20"/>
-    <arg name="offset_x" default="0"/>
-    <arg name="offset_y" default="0"/>
-    <arg name="offset_z" default="0"/>
-    <arg name="offset_yaw" default="0"/>
-    <!-- 启动 pos_estimator 节点 -->
-    <node pkg="offboard_pkg" type="pos_estimator" name="pos_estimator_node" output="screen" launch-prefix="gnome-terminal --tab -- zsh -c">
-        <!-- 传递参数到节点 -->
-        <param name="input_source" value="$(arg input_source)"/>
-        <param name="mocap_frame_type" value="$(arg mocap_frame_type)"/>
-        <param name="rigid_body_name" value="$(arg rigid_body_name)"/>
-        <param name="rate_hz" value="$(arg rate_hz)"/>
-        <param name="offset_x" value="$(arg offset_x)"/>
-        <param name="offset_y" value="$(arg offset_y)"/>
-        <param name="offset_z" value="$(arg offset_z)"/>
-        <param name="offset_yaw" value="$(arg offset_yaw)"/>
     </node>
 
     <!-- vrpn 参数设置 -->
@@ -69,4 +46,34 @@
         #- SecondTracker
         </rosparam>
     </node>
+
+    <!-- 使用topic_tools中的throttle对指定topic进行限流 -->
+    <node pkg="topic_tools" type="throttle" name="vrpn_pose_throttle" args="messages /vrpn_client_node/$(arg rigid_body_name)/pose 50 /vrpn_client_node/$(arg rigid_body_name)/pose_throttled"/>
+
+    <!-- pos_estimator 参数设置 -->
+    <!-- 0-mocap 1-slam 2-gazebo 3-others -->
+    <arg name="input_source" default="0"/>
+    <!-- 0-Z_up 1-Y_up -->
+    <arg name="mocap_frame_type" default="0"/>
+    <arg name="rigid_body_name" default="uav"/>
+    <arg name="rate_hz" default="50"/>
+    <arg name="offset_x" default="0"/>
+    <arg name="offset_y" default="0"/>
+    <arg name="offset_z" default="0"/>
+    <arg name="offset_yaw" default="0"/>
+    <!-- 启动 pos_estimator 节点 -->
+    <node pkg="offboard_pkg" type="pos_estimator" name="pos_estimator_node" output="screen" launch-prefix="gnome-terminal --tab -- zsh -c">
+        <!-- 传递参数到节点 -->
+        <param name="input_source" value="$(arg input_source)"/>
+        <param name="mocap_frame_type" value="$(arg mocap_frame_type)"/>
+        <param name="rigid_body_name" value="$(arg rigid_body_name)"/>
+        <param name="rate_hz" value="$(arg rate_hz)"/>
+        <param name="offset_x" value="$(arg offset_x)"/>
+        <param name="offset_y" value="$(arg offset_y)"/>
+        <param name="offset_z" value="$(arg offset_z)"/>
+        <param name="offset_yaw" value="$(arg offset_yaw)"/>
+        <!-- remap topic, subcribe <to_topic> instead <from_topic> -->
+        <remap from="/vrpn_client_node/$(arg rigid_body_name)/pose" to="/vrpn_client_node/$(arg rigid_body_name)/pose_throttled"/>
+    </node>
+
 </launch>
