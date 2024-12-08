@@ -122,16 +122,17 @@ int main(int argc, char** argv)
 
     // subscribe drone state from mavros
     ros::Subscriber state_sub = nh.subscribe<mavros_msgs::State>
-                                ("mavros/state", 10, state_cb);
+                                ("/mavros/state", 10, state_cb);
 
     ros::Subscriber extened_state_sub = nh.subscribe<mavros_msgs::ExtendedState>
-                                ("mavros/extended_state", 10, extened_state_cb);
+                                ("/mavros/extended_state", 10, extened_state_cb);
 
     ros::Subscriber position_pose_sub = nh.subscribe<geometry_msgs::PoseStamped>
-                                ("mavros/local_position/pose", 10, position_pose_cb);
+                                ("/mavros/local_position/pose", 10, position_pose_cb);
     
+    // not transfer velocity information to mavros, so velocity is always zero
     ros::Subscriber velocity_sub = nh.subscribe<geometry_msgs::TwistStamped>
-                                ("mavros/local_position/velocity", 10, velocity_cb);
+                                ("/mavros/local_position/velocity", 10, velocity_cb);
 
     // publish position&pose information to FCU
     vision_pub = nh.advertise<geometry_msgs::PoseStamped>("/mavros/vision_pose/pose", 10);
@@ -219,10 +220,10 @@ void send_to_fcu()
 
 void pub_state_cb(const ros::TimerEvent& e)
 {
-    ROS_INFO("--------------------");
+    ROS_INFO("----------------------------------------");
     ROS_INFO("Program is running.");
     // out put drone state
-    ROS_INFO("--------------------");
+    ROS_INFO("----------------------------------------");
     ROS_INFO("Drone State: ");
     if (drone_connected) {
         ROS_INFO("Drone is connected.");
@@ -243,12 +244,12 @@ void pub_state_cb(const ros::TimerEvent& e)
     else {
         ROS_INFO("Drone is not landed.");
     }
-    ROS_INFO("--------------------");
+    ROS_INFO("----------------------------------------");
     ROS_INFO_STREAM("Position&Pose Information from PX4");
-    ROS_INFO_STREAM("Drone Position: " << drone_position.transpose());
-    ROS_INFO_STREAM("Drone Velocity: " << drone_velocity.transpose());
-    ROS_INFO_STREAM("Drone Pose Quaternion: " << drone_pose_quaternion.x() << " " << drone_pose_quaternion.y() << " " << drone_pose_quaternion.z() << " " << drone_pose_quaternion.w());
-    ROS_INFO("--------------------");
+    ROS_INFO_STREAM("Drone Position(x y z): " << std::endl << drone_position.transpose());
+    ROS_INFO_STREAM("Drone Velocity(x y z): " << std::endl << drone_velocity.transpose());
+    ROS_INFO_STREAM("Drone Pose Quaternion(x y z w): " << std::endl << drone_pose_quaternion.x() << " " << drone_pose_quaternion.y() << " " << drone_pose_quaternion.z() << " " << drone_pose_quaternion.w());
+    ROS_INFO("----------------------------------------");
 
     // publish drone odometry for RVIZ visualization
     nav_msgs::Odometry drone_odom;
