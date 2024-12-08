@@ -47,8 +47,6 @@
         </rosparam>
     </node>
 
-    <!-- 使用topic_tools中的throttle对指定topic进行限流 -->
-    <node pkg="topic_tools" type="throttle" name="vrpn_pose_throttle" args="messages /vrpn_client_node/$(arg rigid_body_name)/pose 50 /vrpn_client_node/$(arg rigid_body_name)/pose_throttled"/>
 
     <!-- pos_estimator 参数设置 -->
     <!-- 0-mocap 1-slam 2-gazebo 3-others -->
@@ -61,6 +59,10 @@
     <arg name="offset_y" default="0"/>
     <arg name="offset_z" default="0"/>
     <arg name="offset_yaw" default="0"/>
+
+    <!-- 使用topic_tools中的throttle对指定topic进行限流 -->
+    <node pkg="topic_tools" type="throttle" name="vrpn_pose_throttle" args="messages /vrpn_client_node/$(arg rigid_body_name)/pose 50 /vrpn_client_node/$(arg rigid_body_name)/pose_throttled"/>
+
     <!-- 启动 pos_estimator 节点 -->
     <node pkg="offboard_pkg" type="pos_estimator" name="pos_estimator_node" output="screen" launch-prefix="gnome-terminal --tab -- zsh -c">
         <!-- 传递参数到节点 -->

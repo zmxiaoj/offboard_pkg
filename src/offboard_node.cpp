@@ -4,11 +4,15 @@
 #include <mavros_msgs/CommandBool.h>  //CommandBool服务的头文件，该服务的类型为mavros_msgs::CommandBool
 #include <mavros_msgs/SetMode.h>  //SetMode服务的头文件，该服务的类型为mavros_msgs::SetMode
 #include <mavros_msgs/State.h>  //订阅的消息体的头文件，该消息体的类型为mavros_msgs::State
+#include <std_msgs/Bool.h>
 
+// Global Parameters
 mavros_msgs::State current_state;
+bool land_command_received = false;
 
 void state_cb(const mavros_msgs::State::ConstPtr& msg);
 
+void land_command_cb(const std_msgs::Bool::ConstPtr& msg);
 
 int main(int argc, char **argv)
 {
@@ -17,13 +21,17 @@ int main(int argc, char **argv)
 
     ros::Subscriber state_sub = nh.subscribe<mavros_msgs::State>
             ("/mavros/state", 10, state_cb);
+    ros::Subscriber land_command_sub = nh.subscribe<std_msgs::Bool>
+            ("/land_command", 10, land_command_cb);
+    
     ros::Publisher local_pos_pub = nh.advertise<geometry_msgs::PoseStamped>
             ("/mavros/setpoint_position/local", 10);
+
+
     ros::ServiceClient arming_client = nh.serviceClient<mavros_msgs::CommandBool>
             ("/mavros/cmd/arming");
     ros::ServiceClient set_mode_client = nh.serviceClient<mavros_msgs::SetMode>
             ("/mavros/set_mode");
-
     
 
     double takeoff_position_x = 0.0, takeoff_position_y = 0.0, takeoff_position_z = 1.0;
@@ -65,6 +73,11 @@ int main(int argc, char **argv)
     ros::Time last_request = ros::Time::now();
 
     while (ros::ok()) {
+        if (land_command_received) {
+            ROS_INFO("Land command received, exiting offboard mode and landing...");
+            break;
+        }
+
         if (current_state.mode != "OFFBOARD" &&
             (ros::Time::now() - last_request > ros::Duration(5.0))) {
             if (set_mode_client.call(offb_set_mode) && offb_set_mode.response.mode_sent) { 
@@ -98,4 +111,9 @@ int main(int argc, char **argv)
 void state_cb(const mavros_msgs::State::ConstPtr& msg)
 {
     current_state = *msg;
+}
+
+void land_command_cb(const std_msgs::Bool::ConstPtr& msg) 
+{
+    land_command_received = msg->data;
 }
