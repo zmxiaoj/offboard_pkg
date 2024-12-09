@@ -5,6 +5,7 @@
 #include <mavros_msgs/SetMode.h>  //SetMode服务的头文件，该服务的类型为mavros_msgs::SetMode
 #include <mavros_msgs/State.h>  //订阅的消息体的头文件，该消息体的类型为mavros_msgs::State
 #include <std_msgs/Bool.h>
+#include <eigen3/Eigen/Eigen>
 
 // Global Parameters
 mavros_msgs::State current_state;
@@ -34,13 +35,18 @@ int main(int argc, char **argv)
             ("/mavros/set_mode");
     
 
-    double takeoff_position_x = 0.0, takeoff_position_y = 0.0, takeoff_position_z = 1.0;
+    float takeoff_position_x = 0.0, takeoff_position_y = 0.0, takeoff_position_z = 1.0;
 
-    nh.param("takeoff_position_x", takeoff_position_x, 0.0);
-    nh.param("takeoff_position_y", takeoff_position_y, 0.0);
-    nh.param("takeoff_position_z", takeoff_position_z, 1.0);
+    nh.param<float>("takeoff_position_x", takeoff_position_x, 0.0);
+    nh.param<float>("takeoff_position_y", takeoff_position_y, 0.0);
+    nh.param<float>("takeoff_position_z", takeoff_position_z, 1.0);
 
-    ROS_INFO("takeoff_position_x: %f, takeoff_position_y: %f, takeoff_position_z: %f", takeoff_position_x, takeoff_position_y, takeoff_position_z);
+    Eigen::Vector3f takeoff_position(takeoff_position_x, takeoff_position_y, takeoff_position_z);
+
+    // clamp flight height
+    takeoff_position.z() = std::min(std::max(takeoff_position.z(), 0.0f), 5.0f);
+
+    ROS_INFO_STREAM("Takeoff Position(x y z): " << std::endl << takeoff_position.transpose());
 
     //the setpoint publishing rate MUST be faster than 2Hz
     ros::Rate rate(20.0);
@@ -52,10 +58,10 @@ int main(int argc, char **argv)
     }
 
     geometry_msgs::PoseStamped takeoff_positon;
-    // 仅设置起飞高度
-    takeoff_positon.pose.position.x = takeoff_position_x;
-    takeoff_positon.pose.position.y = takeoff_position_y;
-    takeoff_positon.pose.position.z = takeoff_position_z;
+
+    takeoff_positon.pose.position.x = takeoff_position.x();
+    takeoff_positon.pose.position.y = takeoff_position.y();
+    takeoff_positon.pose.position.z = takeoff_position.z();
 
     //send a few setpoints before starting
     for (int i = 100; ros::ok() && i > 0; --i) {
@@ -78,19 +84,21 @@ int main(int argc, char **argv)
             break;
         }
 
-        if (current_state.mode != "OFFBOARD" &&
-            (ros::Time::now() - last_request > ros::Duration(5.0))) {
-            if (set_mode_client.call(offb_set_mode) && offb_set_mode.response.mode_sent) { 
-                ROS_INFO("Offboard enabled");
-            }
-            last_request = ros::Time::now();
-        } else {
-            if (!current_state.armed && (ros::Time::now() - last_request > ros::Duration(5.0))) {
-                if (arming_client.call(arm_cmd) && arm_cmd.response.success) {
+        ros::Time now = ros::Time::now();
+        if (now - last_request > ros::Duration(5.0)) {
+            if (current_state.mode != "OFFBOARD") {
+                if (set_mode_client.call(offb_set_mode) && offb_set_mode.response.mode_sent)
+                    ROS_INFO("Offboard enabled");
+                else 
+                    ROS_WARN("Failed to OFFBOARD mode"); 
+            } 
+            else if (!current_state.armed) {
+                if (arming_client.call(arm_cmd) && arm_cmd.response.success)
                     ROS_INFO("Vehicle armed");
-                }
-                last_request = ros::Time::now();
+                else 
+                    ROS_WARN("Failed to ARM");
             }
+            last_request = now;
         }
 
         local_pos_pub.publish(takeoff_positon);
