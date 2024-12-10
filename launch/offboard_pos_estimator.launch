@@ -16,7 +16,7 @@
     <node pkg="topic_tools" type="throttle" name="vrpn_pose_throttle" args="messages /vrpn_client_node/$(arg rigid_body_name)/pose 50 /vrpn_client_node/$(arg rigid_body_name)/pose_throttled"/>
 
     <!-- 启动 pos_estimator 节点 -->
-    <node pkg="offboard_pkg" type="pos_estimator" name="pos_estimator_node" output="screen" launch-prefix="gnome-terminal --tab -- zsh -c">
+    <node pkg="offboard_pkg" type="pos_estimator" name="pos_estimator_node" output="screen">
         <!-- 传递参数到节点 -->
         <param name="input_source" value="$(arg input_source)"/>
         <param name="mocap_frame_type" value="$(arg mocap_frame_type)"/>
