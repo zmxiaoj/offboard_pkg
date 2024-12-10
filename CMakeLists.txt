@@ -164,14 +164,14 @@ target_link_libraries(fake_mocap ${catkin_LIBRARIES})
 
 ## offboard_example
 
-add_executable(offboard_node src/offboard_node.cpp)
-target_link_libraries(offboard_node ${catkin_LIBRARIES})
+add_executable(offboard_hover src/offboard_hover.cpp)
+target_link_libraries(offboard_hover ${catkin_LIBRARIES})
 
-add_executable(offboard_position src/offboard_traverse.cpp)
-target_link_libraries(offboard_position ${catkin_LIBRARIES})
+add_executable(offboard_traverse src/offboard_traverse.cpp)
+target_link_libraries(offboard_traverse ${catkin_LIBRARIES})
 
-add_executable(offboard_rosbag src/waypoint_tracker.cpp)
-target_link_libraries(offboard_rosbag ${catkin_LIBRARIES})
+add_executable(offboard_waypoint_tracker src/offboard_waypoint_tracker.cpp)
+target_link_libraries(offboard_waypoint_tracker ${catkin_LIBRARIES})
 
 #############
 ## Install ##

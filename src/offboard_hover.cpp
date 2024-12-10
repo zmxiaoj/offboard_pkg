@@ -17,7 +17,7 @@ void land_command_cb(const std_msgs::Bool::ConstPtr& msg);
 
 int main(int argc, char **argv)
 {
-    ros::init(argc, argv, "offboard_node");
+    ros::init(argc, argv, "offboard_hover_node");
     ros::NodeHandle nh("~");
 
     ros::Subscriber state_sub = nh.subscribe<mavros_msgs::State>

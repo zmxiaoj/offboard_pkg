@@ -4,8 +4,8 @@
     <arg name="takeoff_position_y" default="0.0"/>
     <arg name="takeoff_position_z" default="1.0"/>
 
-    <!-- 启动offboard_node节点 -->
-    <node pkg="offboard_pkg" type="offboard_node" name="offboard_node" output="screen">
+    <!-- 启动offboard_hover节点 -->
+    <node pkg="offboard_pkg" type="offboard_hover" name="offboard_hover_node" output="screen">
         <!-- 传递参数到节点 -->
         <param name="takeoff_position_x" value="$(arg takeoff_position_x)"/>
         <param name="takeoff_position_y" value="$(arg takeoff_position_y)"/>

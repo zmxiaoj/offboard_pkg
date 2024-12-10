@@ -15,7 +15,7 @@ void state_cb(const mavros_msgs::State::ConstPtr& msg);
 
 int main(int argc, char **argv)
 {
-    ros::init(argc, argv, "waypoint_tracker_node");
+    ros::init(argc, argv, "offboard_waypoint_tracker_node");
     ros::NodeHandle nh("~");
  
     ros::Subscriber state_sub = nh.subscribe<mavros_msgs::State>

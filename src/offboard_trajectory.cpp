@@ -8,6 +8,7 @@
 #include <sstream>
 #include <iostream>
 #include <std_msgs/Bool.h>
+#include <std_msgs/Int8.h>
 #include <eigen3/Eigen/Eigen>
 
 mavros_msgs::State current_state;
@@ -15,12 +16,13 @@ bool land_command_received = false;
 
 void state_cb(const mavros_msgs::State::ConstPtr& msg);
 void land_command_cb(const std_msgs::Bool::ConstPtr& msg);
+void pattern_command_cb(const std_msgs::Int8::ConstPtr& msg);
 
 void publish_setpoint(const ros::Publisher& pub, const geometry_msgs::PoseStamped& pose, ros::Rate& rate, ros::Duration timeout);
  
 int main(int argc, char **argv)
 {
-    ros::init(argc, argv, "offboard_traverse_node");
+    ros::init(argc, argv, "offboard_trajectory_node");
     ros::NodeHandle nh("~");
  
     ros::Subscriber state_sub = nh.subscribe<mavros_msgs::State>
@@ -36,7 +38,7 @@ int main(int argc, char **argv)
     ros::ServiceClient set_mode_client = nh.serviceClient<mavros_msgs::SetMode>
             ("/mavros/set_mode");
     //ros::Publisher velocity_pub = nh.advertise<geometry_msgs::TwistStamped>
-           // ("mavros/setpoint_velocity/cmd_vel", 10);
+           // ("/mavros/setpoint_velocity/cmd_vel", 10);
 
 
     float takeoff_x = 0.0, takeoff_y = 0.0, takeoff_z = 1.0,
