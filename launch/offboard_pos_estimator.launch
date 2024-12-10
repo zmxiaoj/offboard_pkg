@@ -1,53 +1,5 @@
 <launch>
 
-    <!-- mavros 参数设置 -->
-	<arg name="fcu_url" default="/dev/ttyTHS0:921600" />
-    <!-- <arg name="gcs_url" default="udp://:14550@192.168.xx.xx" /> -->
-	<arg name="gcs_url" default="" />
-	<arg name="tgt_system" default="1" />
-	<arg name="tgt_component" default="1" />
-	<arg name="log_output" default="screen" />
-	<arg name="fcu_protocol" default="v2.0" />
-	<arg name="respawn_mavros" default="false" />
-    <!-- 启动 mavros 节点 -->
-    <node pkg="mavros" type="mavros_node" name="mavros" output="screen" launch-prefix="gnome-terminal --tab -- zsh -c">
-        <param name="fcu_url" value="$(arg fcu_url)"/>
-        <param name="gcs_url" value="$(arg gcs_url)"/>
-        <param name="tgt_system" value="$(arg tgt_system)"/>
-        <param name="tgt_component" value="$(arg tgt_component)"/>
-        <param name="log_output" value="$(arg log_output)"/>
-        <param name="fcu_protocol" value="$(arg fcu_protocol)"/>
-        <param name="fcu_protrespawn_mavrosocol" value="$(arg respawn_mavros)"/>
-    </node>
-
-    <!-- vrpn 参数设置 -->
-    <arg name="server" default="192.168.1.1" />
-    <arg name="port" default="3883" />
-    <arg name="update_frequency" default="100.0" />
-    <arg name="frame_id" default="world" />
-    <!-- 启动 vrpn 节点 -->
-    <node pkg="vrpn_client_ros" type="vrpn_client_node" name="vrpn_client_node" output="screen" launch-prefix="gnome-terminal --tab -- zsh -c">
-        <!-- 传递参数到 vrpn_client_ros 节点 -->
-        <rosparam subst_value="true">
-        server: $(arg server)
-        port: $(arg port)
-
-        update_frequency: $(arg update_frequency)
-        frame_id: $(arg frame_id)
-
-        # Use the VRPN server's time, or the client's ROS time.
-        use_server_time: false
-        broadcast_tf: true
-
-        # Must either specify refresh frequency > 0.0, or a list of trackers to create
-        refresh_tracker_frequency: 1.0
-        #trackers:
-        #- FirstTracker
-        #- SecondTracker
-        </rosparam>
-    </node>
-
-
     <!-- pos_estimator 参数设置 -->
     <!-- 0-mocap 1-slam 2-gazebo 3-others -->
     <arg name="input_source" default="0"/>

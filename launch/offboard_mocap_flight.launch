@@ -2,15 +2,15 @@
 
     <!-- mavros 参数设置 -->
 	<arg name="fcu_url" default="/dev/ttyTHS0:921600" />
-    <!-- <arg name="gcs_url" default="udp://:14550@192.168.xx.xx" /> -->
-	<arg name="gcs_url" default="" />
+    <!-- <arg name="gcs_url" default="udp://:14550@192.168.xx.xx"(host ip) /> -->
+	<arg name="gcs_url" default="udp://:14550@192.168.31.37" />
 	<arg name="tgt_system" default="1" />
 	<arg name="tgt_component" default="1" />
 	<arg name="log_output" default="screen" />
 	<arg name="fcu_protocol" default="v2.0" />
 	<arg name="respawn_mavros" default="false" />
     <!-- 启动 mavros 节点 -->
-    <node pkg="mavros" type="mavros_node" name="mavros" output="screen">
+    <node pkg="mavros" type="mavros_node" name="mavros" output="screen" launch-prefix="gnome-terminal --tab -- zsh -c">
         <param name="fcu_url" value="$(arg fcu_url)"/>
         <param name="gcs_url" value="$(arg gcs_url)"/>
         <param name="tgt_system" value="$(arg tgt_system)"/>
@@ -21,12 +21,12 @@
     </node>
 
     <!-- vrpn 参数设置 -->
-    <arg name="server" default="192.168.1.1" />
+    <arg name="server" default="192.168.1.100" />
     <arg name="port" default="3883" />
     <arg name="update_frequency" default="100.0" />
     <arg name="frame_id" default="world" />
     <!-- 启动 vrpn 节点 -->
-    <node pkg="vrpn_client_ros" type="vrpn_client_node" name="vrpn_client_node" output="screen">
+    <node pkg="vrpn_client_ros" type="vrpn_client_node" name="vrpn_client_node" output="screen" launch-prefix="gnome-terminal --tab -- zsh -c">
         <!-- 传递参数到 vrpn_client_ros 节点 -->
         <rosparam subst_value="true">
         server: $(arg server)
@@ -64,7 +64,7 @@
     <node pkg="topic_tools" type="throttle" name="vrpn_pose_throttle" args="messages /vrpn_client_node/$(arg rigid_body_name)/pose 50 /vrpn_client_node/$(arg rigid_body_name)/pose_throttled"/>
 
     <!-- 启动 pos_estimator 节点 -->
-    <node pkg="offboard_pkg" type="pos_estimator" name="pos_estimator_node" output="screen">
+    <node pkg="offboard_pkg" type="pos_estimator" name="pos_estimator_node" output="screen" launch-prefix="gnome-terminal --tab -- zsh -c">
         <!-- 传递参数到节点 -->
         <param name="input_source" value="$(arg input_source)"/>
         <param name="mocap_frame_type" value="$(arg mocap_frame_type)"/>
