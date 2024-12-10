@@ -10,7 +10,7 @@
 	<arg name="fcu_protocol" default="v2.0" />
 	<arg name="respawn_mavros" default="false" />
     <!-- 启动 mavros 节点 -->
-    <node pkg="mavros" type="mavros_node" name="mavros_node" output="screen">
+    <node pkg="mavros" type="mavros_node" name="mavros" output="screen">
         <param name="fcu_url" value="$(arg fcu_url)"/>
         <param name="gcs_url" value="$(arg gcs_url)"/>
         <param name="tgt_system" value="$(arg tgt_system)"/>

@@ -8,7 +8,7 @@
     <arg name="patrol_z" default="1.0"/>
 
     <!-- 启动 offboard_traverse 节点 -->
-    <node name="offboard_traverse" pkg="offboard_pkg" type="offboard_position" output="screen">
+    <node pkg="offboard_pkg" type="offboard_position" name="offboard_position" output="screen">
         <!-- 传递参数到节点 -->
         <param name="takeoff_x" value="$(arg takeoff_x)"/>
         <param name="takeoff_y" value="$(arg takeoff_y)"/>
