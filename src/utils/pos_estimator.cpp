@@ -219,37 +219,33 @@ void send_to_fcu()
 }
 
 void pub_state_cb(const ros::TimerEvent& e)
-{
-    ROS_INFO("----------------------------------------");
-    ROS_INFO("Program is running.");
-    // out put drone state
-    ROS_INFO("----------------------------------------");
-    ROS_INFO("Drone State: ");
-    if (drone_connected) {
-        ROS_INFO("Drone is connected.");
-    }
-    else {
-        ROS_WARN("Drone is not connected.");
-    }
-    if (drone_armed) {
-        ROS_INFO("Drone is armed.");
-    }
-    else {
-        ROS_WARN("Drone is not armed.");
-    }
-    ROS_INFO("Mode: %s", drone_mode.c_str());
-    if (drone_landed) {
-        ROS_INFO("Drone is landed.");
-    }
-    else {
-        ROS_INFO("Drone is not landed.");
-    }
-    ROS_INFO("----------------------------------------");
-    ROS_INFO_STREAM("Position&Pose Information from PX4");
-    ROS_INFO_STREAM("Drone Position(x y z): " << std::endl << drone_position.transpose());
-    ROS_INFO_STREAM("Drone Velocity(x y z): " << std::endl << drone_velocity.transpose());
-    ROS_INFO_STREAM("Drone Pose Quaternion(x y z w): " << std::endl << drone_pose_quaternion.x() << " " << drone_pose_quaternion.y() << " " << drone_pose_quaternion.z() << " " << drone_pose_quaternion.w());
-    ROS_INFO("----------------------------------------");
+{    
+    std::stringstream ss;
+    ss << "\n================= System Status =================\n"
+       << "Program Status: Running\n"
+       << "\n----------------- Drone State -----------------\n"
+       << "Connection : " << (drone_connected ? "Connected" : "Not Connected") << "\n"
+       << "Armed      : " << (drone_armed ? "Armed" : "Not Armed") << "\n"
+       << "Flight Mode: " << drone_mode << "\n"
+       << "Land State : " << (drone_landed ? "Landed" : "Not Landed") << "\n"
+       << "\n--------------- PX4 Information --------------\n"
+       << "Position (x, y, z)      : (" 
+       << std::fixed << std::setprecision(3) 
+       << drone_position.x() << ", "
+       << drone_position.y() << ", "
+       << drone_position.z() << ")\n"
+       << "Velocity (x, y, z)      : ("
+       << drone_velocity.x() << ", "
+       << drone_velocity.y() << ", "
+       << drone_velocity.z() << ")\n"
+       << "Quaternion (x, y, z, w) : ("
+       << drone_pose_quaternion.x() << ", "
+       << drone_pose_quaternion.y() << ", "
+       << drone_pose_quaternion.z() << ", "
+       << drone_pose_quaternion.w() << ")\n"
+       << "=============================================\n";
+    
+    ROS_INFO_STREAM(ss.str());
 
     // publish drone odometry for RVIZ visualization
     nav_msgs::Odometry drone_odom;
