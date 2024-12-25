@@ -41,12 +41,12 @@ int main(int argc, char **argv)
     nh.param<float>("takeoff_position_y", takeoff_position_y, 0.0);
     nh.param<float>("takeoff_position_z", takeoff_position_z, 1.0);
 
-    Eigen::Vector3f takeoff_position(takeoff_position_x, takeoff_position_y, takeoff_position_z);
+    Eigen::Vector3f takeoff_position_v3f(takeoff_position_x, takeoff_position_y, takeoff_position_z);
 
     // clamp flight height
-    takeoff_position.z() = std::min(std::max(takeoff_position.z(), 0.0f), 5.0f);
+    takeoff_position_v3f.z() = std::min(std::max(takeoff_position_v3f.z(), 0.0f), 5.0f);
 
-    ROS_INFO_STREAM("Takeoff Position(x y z): " << std::endl << takeoff_position.transpose());
+    ROS_INFO_STREAM("Takeoff Position(x y z): " << std::endl << takeoff_position_v3f.transpose());
 
     //the setpoint publishing rate MUST be faster than 2Hz
     ros::Rate rate(20.0);
@@ -57,15 +57,15 @@ int main(int argc, char **argv)
         rate.sleep();
     }
 
-    geometry_msgs::PoseStamped takeoff_positon;
+    geometry_msgs::PoseStamped takeoff_position;
 
-    takeoff_positon.pose.position.x = takeoff_position.x();
-    takeoff_positon.pose.position.y = takeoff_position.y();
-    takeoff_positon.pose.position.z = takeoff_position.z();
+    takeoff_position.pose.position.x = takeoff_position_v3f.x();
+    takeoff_position.pose.position.y = takeoff_position_v3f.y();
+    takeoff_position.pose.position.z = takeoff_position_v3f.z();
 
     //send a few setpoints before starting
     for (int i = 100; ros::ok() && i > 0; --i) {
-        local_pos_pub.publish(takeoff_positon);
+        local_pos_pub.publish(takeoff_position);
         ros::spinOnce();
         rate.sleep();
     }
