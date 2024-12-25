@@ -15,14 +15,18 @@
 // Global variables
 mavros_msgs::State current_state;
 geometry_msgs::PoseStamped current_pose;
+geometry_msgs::PoseStamped initial_pose;
 bool land_command_received = false;
+bool initial_pose_received = false;
 
 // Callback declarations
 void state_cb(const mavros_msgs::State::ConstPtr& msg);
 void land_command_cb(const std_msgs::Bool::ConstPtr& msg);
 void pose_cb(const geometry_msgs::PoseStamped::ConstPtr& msg);
 
-// Utility function declarations
+// Util function declarations
+geometry_msgs::PoseStamped transformPose2Setpoint(  const geometry_msgs::Pose& relative_pose,
+                                                    const geometry_msgs::PoseStamped& initial_pose); 
 void publish_setpoint(const ros::Publisher& pub, const geometry_msgs::PoseStamped& pose, ros::Rate& rate, ros::Duration timeout);
 void publishPoseAndSetpoint(const geometry_msgs::PoseStamped& current_pose, 
                           const geometry_msgs::PoseStamped& setpoint_pose,
@@ -59,20 +63,22 @@ int main(int argc, char **argv)
 
     float takeoff_x = 0.0, takeoff_y = 0.0, takeoff_z = 1.0,
            patrol_x = 1.0,  patrol_y = 1.0,  patrol_z = 1.0;
-    
+    float hover_time = 10.0;
+
     nh.param<float>("takeoff_x", takeoff_x, 0.0);
     nh.param<float>("takeoff_y", takeoff_y, 0.0);
     nh.param<float>("takeoff_z", takeoff_z, 1.0);
     nh.param<float>("patrol_x",  patrol_x,  1.0);
     nh.param<float>("patrol_y",  patrol_y,  1.0);
     nh.param<float>("patrol_z",  patrol_z,  1.0);
+    nh.param<float>("hover_time", hover_time, 10.0);
 
     Eigen::Vector3f takeoff_position(takeoff_x, takeoff_y, takeoff_z),
                     patrol_position(patrol_x, patrol_y, patrol_z);
     
     // clamp flight height
-    takeoff_position.z() = std::min(std::max(takeoff_position.z(), 0.0f), 5.0f);
-    patrol_position.z() = std::min(std::max(patrol_position.z(), 0.0f), 5.0f);
+    takeoff_position.z() = std::min(std::max(takeoff_position.z(), 0.0f), 3.0f);
+    patrol_position.z() = std::min(std::max(patrol_position.z(), 0.0f), 3.0f);
 
     std::stringstream ss;
     ss << "\n============== Flight Mission ==============\n"
@@ -84,6 +90,7 @@ int main(int argc, char **argv)
        << "  x: " << std::setw(8) << patrol_position.x()
        << "  y: " << std::setw(8) << patrol_position.y()
        << "  z: " << std::setw(8) << patrol_position.z() << "\n"
+       << "\nHover Time: " << std::setw(8) << hover_time << " seconds\n"
        << "==========================================\n";
     
     ROS_INFO_STREAM(ss.str());
@@ -92,18 +99,29 @@ int main(int argc, char **argv)
     ros::Rate rate(20.0);
  
     // wait for FCU connection
-    while (ros::ok() && !current_state.connected) {
+    while (ros::ok() && (!current_state.connected || !initial_pose_received)) {
         ros::spinOnce();
         rate.sleep();
     }
  
-    geometry_msgs::PoseStamped takeoff_setpoint_pose, patrol_setpoint_pose;
-    takeoff_setpoint_pose.pose.position.x = takeoff_position.x();
-    takeoff_setpoint_pose.pose.position.y = takeoff_position.y();
-    takeoff_setpoint_pose.pose.position.z = takeoff_position.z();
-    patrol_setpoint_pose.pose.position.x  = patrol_position.x();
-    patrol_setpoint_pose.pose.position.y  = patrol_position.y();
-    patrol_setpoint_pose.pose.position.z  = patrol_position.z();
+    geometry_msgs::Pose takeoff_pose, patrol_pose;
+    takeoff_pose.position.x = takeoff_position.x();
+    takeoff_pose.position.y = takeoff_position.y();
+    takeoff_pose.position.z = takeoff_position.z();
+    takeoff_pose.orientation.w = 1.0;
+    takeoff_pose.orientation.x = 0.0;
+    takeoff_pose.orientation.y = 0.0;
+    takeoff_pose.orientation.z = 0.0;
+    patrol_pose.position.x  = patrol_position.x();
+    patrol_pose.position.y  = patrol_position.y();
+    patrol_pose.position.z  = patrol_position.z();
+    patrol_pose.orientation.w = 1.0;
+    patrol_pose.orientation.x = 0.0;
+    patrol_pose.orientation.y = 0.0;
+    patrol_pose.orientation.z = 0.0;
+
+    geometry_msgs::PoseStamped takeoff_setpoint_pose = transformPose2Setpoint(takeoff_pose, initial_pose);
+    geometry_msgs::PoseStamped patrol_setpoint_pose  = transformPose2Setpoint(patrol_pose, initial_pose);
 
     //send a few setpoints before starting
     for (int i = 100; ros::ok() && i > 0; --i) {
@@ -145,18 +163,20 @@ int main(int argc, char **argv)
             break;
         }
         
+        publish_setpoint(local_pos_pub, takeoff_setpoint_pose, rate, ros::Duration(hover_time));
         publishPoseAndSetpoint(current_pose, takeoff_setpoint_pose, current_pose_pub, setpoint_pose_pub);
         printPoseInfo(current_pose, takeoff_setpoint_pose);
-        publish_setpoint(local_pos_pub, takeoff_setpoint_pose, rate, ros::Duration(5.0));
+
 
         if (land_command_received) {
             ROS_INFO("Land command received, exiting offboard mode and landing...");
             break;
         }
 
+        publish_setpoint(local_pos_pub, patrol_setpoint_pose, rate, ros::Duration(hover_time));
         publishPoseAndSetpoint(current_pose, patrol_setpoint_pose, current_pose_pub, setpoint_pose_pub);
         printPoseInfo(current_pose, patrol_setpoint_pose);
-        publish_setpoint(local_pos_pub, patrol_setpoint_pose, rate, ros::Duration(5.0));
+
     }
 
     offb_set_mode.request.custom_mode = "AUTO.LAND";
@@ -180,8 +200,12 @@ void land_command_cb(const std_msgs::Bool::ConstPtr& msg)
 void pose_cb(const geometry_msgs::PoseStamped::ConstPtr& msg)
 {
     current_pose = *msg;
+    if (!initial_pose_received) {
+        initial_pose = current_pose;
+        initial_pose_received = true;
+        ROS_INFO("Initial pose recorded");
+    }
 }
-
 void publish_setpoint(const ros::Publisher& setpoint_publisher, const geometry_msgs::PoseStamped& target_setpoint, ros::Rate& rate, ros::Duration timeout)
 {
     ros::Time start_time = ros::Time::now();
@@ -196,6 +220,54 @@ void publish_setpoint(const ros::Publisher& setpoint_publisher, const geometry_m
         ros::spinOnce();
         rate.sleep();
     }
+}
+
+geometry_msgs::PoseStamped transformPose2Setpoint(  const geometry_msgs::Pose& relative_pose,
+                                                    const geometry_msgs::PoseStamped& initial_pose) 
+{
+    geometry_msgs::PoseStamped setpoint;
+    
+    // Get initial pose quaternion[w x y z]
+    Eigen::Quaterniond q_initial(
+        initial_pose.pose.orientation.w,
+        initial_pose.pose.orientation.x,
+        initial_pose.pose.orientation.y,
+        initial_pose.pose.orientation.z
+    );
+    
+    // Convert relative position to Eigen vector
+    Eigen::Vector3d p_relative(
+        relative_pose.position.x,
+        relative_pose.position.y,
+        relative_pose.position.z
+    );
+    
+    // Rotate relative position by initial orientation
+    Eigen::Vector3d p_global = q_initial * p_relative;
+    
+    // Add initial position
+    // t_setpoint = R_initial * t_relative + t_initial
+    setpoint.pose.position.x = p_global.x() + initial_pose.pose.position.x;
+    setpoint.pose.position.y = p_global.y() + initial_pose.pose.position.y;
+    setpoint.pose.position.z = p_global.z() + initial_pose.pose.position.z;
+    
+    // Combine rotations for orientation
+    Eigen::Quaterniond q_relative(
+        relative_pose.orientation.w,
+        relative_pose.orientation.x,
+        relative_pose.orientation.y,
+        relative_pose.orientation.z
+    );
+    Eigen::Quaterniond q_global = q_initial * q_relative;
+    
+    // Set final orientation
+    // R_setpoint = R_initial * R_relative
+    setpoint.pose.orientation.w = q_global.w();
+    setpoint.pose.orientation.x = q_global.x();
+    setpoint.pose.orientation.y = q_global.y();
+    setpoint.pose.orientation.z = q_global.z();
+    
+    return setpoint;
 }
 
 void publishPoseAndSetpoint(const geometry_msgs::PoseStamped& current_pose, 

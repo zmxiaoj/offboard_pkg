@@ -22,16 +22,8 @@ void land_command_cb(const std_msgs::Bool::ConstPtr& msg);
 void pose_cb(const geometry_msgs::PoseStamped::ConstPtr& msg);
 
 // Util Function
-/**
- * @brief Transforms a relative pose to a setpoint pose based on the initial pose.
- * 
- * @param relative_pose The relative pose to be transformed.
- * @param initial_pose The initial pose used as the reference for the transformation.
- * @return geometry_msgs::PoseStamped The transformed setpoint pose.
- */
-geometry_msgs::PoseStamped transformPose2Setpoint(
-    const geometry_msgs::Pose& relative_pose,
-    const geometry_msgs::PoseStamped& initial_pose); 
+geometry_msgs::PoseStamped transformPose2Setpoint(  const geometry_msgs::Pose& relative_pose,
+                                                    const geometry_msgs::PoseStamped& initial_pose); 
 void publishPoseAndSetpoint(const geometry_msgs::PoseStamped& current_pose, 
                             const geometry_msgs::PoseStamped& setpoint_pose,
                             const ros::Publisher& current_pub,
@@ -176,10 +168,15 @@ void pose_cb(const geometry_msgs::PoseStamped::ConstPtr& msg)
     }
 }
 
-// Add after global variables
-geometry_msgs::PoseStamped transformPose2Setpoint(
-    const geometry_msgs::Pose& relative_pose,
-    const geometry_msgs::PoseStamped& initial_pose) 
+/**
+ * @brief Transforms a relative pose to a setpoint pose based on the initial pose.
+ * 
+ * @param relative_pose The relative pose to be transformed.
+ * @param initial_pose The initial pose used as the reference for the transformation.
+ * @return geometry_msgs::PoseStamped The transformed setpoint pose.
+ */
+geometry_msgs::PoseStamped transformPose2Setpoint(  const geometry_msgs::Pose& relative_pose,
+                                                    const geometry_msgs::PoseStamped& initial_pose) 
 {
     geometry_msgs::PoseStamped setpoint;
     

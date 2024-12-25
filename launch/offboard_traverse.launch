@@ -6,6 +6,7 @@
     <arg name="patrol_x" default="1.0"/>
     <arg name="patrol_y" default="1.0"/>
     <arg name="patrol_z" default="1.0"/>
+    <arg name="hover_time" default="10.0"/>
 
     <!-- 启动 offboard_traverse 节点 -->
     <node pkg="offboard_pkg" type="offboard_traverse" name="offboard_traverse_node" output="screen">
@@ -16,5 +17,6 @@
         <param name="patrol_x" value="$(arg patrol_x)"/>
         <param name="patrol_y" value="$(arg patrol_y)"/>
         <param name="patrol_z" value="$(arg patrol_z)"/>
+        <param name="hover_time" value="$(arg hover_time)"/>
     </node>
 </launch>
