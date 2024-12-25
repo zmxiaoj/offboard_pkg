@@ -164,7 +164,8 @@ target_link_libraries(fake_mocap ${catkin_LIBRARIES})
 
 ## offboard_example
 
-add_executable(offboard_hover src/offboard_hover.cpp)
+#add_executable(offboard_hover src/offboard_hover.cpp)
+add_executable(offboard_hover src/offboard_mocap_hover.cpp)
 target_link_libraries(offboard_hover ${catkin_LIBRARIES})
 
 add_executable(offboard_traverse src/offboard_traverse.cpp)
