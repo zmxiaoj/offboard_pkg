@@ -1,0 +1,26 @@
+<launch>
+    
+    <!-- Trajectory parameters -->
+    <rosparam ns="trajectory">
+        height: 1.0
+        takeoff_position_x: 0.0
+        takeoff_position_y: 0.0
+        radius: 1.0
+        rect_width: 2.0
+        rect_height: 2.0
+        speed: 0.5
+    </rosparam>
+
+    <!-- 定义起飞位置参数 -->
+    <!-- <arg name="takeoff_position_x" default="0.0"/>
+    <arg name="takeoff_position_y" default="0.0"/>
+    <arg name="takeoff_position_z" default="1.0"/> -->
+
+    <!-- 启动offboard_hover节点 -->
+    <node pkg="offboard_pkg" type="offboard_trajectory" name="offboard_trajectory_node" output="screen">
+        <!-- 传递参数到节点 -->
+        <!-- <param name="takeoff_position_x" value="$(arg takeoff_position_x)"/>
+        <param name="takeoff_position_y" value="$(arg takeoff_position_y)"/>
+        <param name="takeoff_position_z" value="$(arg takeoff_position_z)"/> -->
+    </node>
+</launch>

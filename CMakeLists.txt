@@ -120,7 +120,6 @@ catkin_package(
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
 include_directories(
-# include
   ${catkin_INCLUDE_DIRS}
 )
 
@@ -174,6 +173,9 @@ target_link_libraries(offboard_traverse ${catkin_LIBRARIES})
 
 add_executable(offboard_waypoint_tracker src/offboard_waypoint_tracker.cpp)
 target_link_libraries(offboard_waypoint_tracker ${catkin_LIBRARIES})
+
+add_executable(offboard_trajectory src/offboard_mocap_trajectory.cpp)
+target_link_libraries(offboard_trajectory ${catkin_LIBRARIES})
 
 #############
 ## Install ##
