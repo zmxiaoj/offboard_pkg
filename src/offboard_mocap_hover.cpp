@@ -18,7 +18,7 @@ bool initial_pose_received = false;
 
 // Callback Function
 void state_cb(const mavros_msgs::State::ConstPtr& msg);
-void land_command_cb(const std_msgs::Bool::ConstPtr& msg);
+void land_cmd_cb(const std_msgs::Bool::ConstPtr& msg);
 void pose_cb(const geometry_msgs::PoseStamped::ConstPtr& msg);
 
 // Util Function
@@ -40,15 +40,15 @@ int main(int argc, char **argv)
     ros::Subscriber state_sub = nh.subscribe<mavros_msgs::State>
             ("/mavros/state", 10, state_cb);
     ros::Subscriber land_command_sub = nh.subscribe<std_msgs::Bool>
-            ("/land_command", 10, land_command_cb);
+            ("/land_cmd", 10, land_cmd_cb);
     ros::Subscriber pose_sub = nh.subscribe<geometry_msgs::PoseStamped>
             ("/mavros/local_position/pose", 10, pose_cb);
 
     ros::Publisher local_pos_pub = nh.advertise<geometry_msgs::PoseStamped>
             ("/mavros/setpoint_position/local", 10);
-    ros::Publisher current_pose_pub = nh.advertise<visualization_msgs::Marker>
+    ros::Publisher current_pose_marker_pub = nh.advertise<visualization_msgs::Marker>
             ("/visualization/current_pose", 10);
-    ros::Publisher setpoint_pose_pub = nh.advertise<visualization_msgs::Marker>
+    ros::Publisher setpoint_pose_marker_pub = nh.advertise<visualization_msgs::Marker>
             ("/visualization/setpoint_pose", 10);
 
     ros::ServiceClient arming_client = nh.serviceClient<mavros_msgs::CommandBool>
@@ -89,8 +89,7 @@ int main(int argc, char **argv)
     takeoff_pose.orientation.z = 0.0;
 
     geometry_msgs::PoseStamped setpoint_pose = transformPose2Setpoint(takeoff_pose, initial_pose);
-
-    publishPoseAndSetpoint(current_pose, setpoint_pose, current_pose_pub, setpoint_pose_pub);
+    publishPoseAndSetpoint(current_pose, setpoint_pose, current_pose_marker_pub, setpoint_pose_marker_pub);
     printPoseInfo(current_pose, setpoint_pose);
 
     //send a few setpoints before starting
@@ -102,7 +101,6 @@ int main(int argc, char **argv)
 
     mavros_msgs::SetMode offb_set_mode;
     offb_set_mode.request.custom_mode = "OFFBOARD";
-
     mavros_msgs::CommandBool arm_cmd;
     arm_cmd.request.value = true;
 
@@ -132,7 +130,7 @@ int main(int argc, char **argv)
         }
 
         local_pos_pub.publish(setpoint_pose);
-        publishPoseAndSetpoint(current_pose, setpoint_pose, current_pose_pub, setpoint_pose_pub);
+        publishPoseAndSetpoint(current_pose, setpoint_pose, current_pose_marker_pub, setpoint_pose_marker_pub);
         printPoseInfo(current_pose, setpoint_pose);
 
         ros::spinOnce();
@@ -153,7 +151,7 @@ void state_cb(const mavros_msgs::State::ConstPtr& msg)
     current_state = *msg;
 }
 
-void land_command_cb(const std_msgs::Bool::ConstPtr& msg) 
+void land_cmd_cb(const std_msgs::Bool::ConstPtr& msg) 
 {
     land_command_received = msg->data;
 }
@@ -220,6 +218,9 @@ geometry_msgs::PoseStamped transformPose2Setpoint(  const geometry_msgs::Pose& r
     setpoint.pose.orientation.y = q_global.y();
     setpoint.pose.orientation.z = q_global.z();
     
+    setpoint.header.frame_id = "world";
+    setpoint.header.stamp = ros::Time::now();
+
     return setpoint;
 }
 
@@ -233,8 +234,8 @@ geometry_msgs::PoseStamped transformPose2Setpoint(  const geometry_msgs::Pose& r
  */
 void publishPoseAndSetpoint(const geometry_msgs::PoseStamped& current_pose, 
                             const geometry_msgs::PoseStamped& setpoint_pose,
-                            const ros::Publisher& current_pub,
-                            const ros::Publisher& setpoint_pub) 
+                            const ros::Publisher& current_marker_pub,
+                            const ros::Publisher& setpoint_marker_pub) 
 {
     // Publish current pose
     visualization_msgs::Marker current_marker;
@@ -256,7 +257,7 @@ void publishPoseAndSetpoint(const geometry_msgs::PoseStamped& current_pose,
     current_marker.color.b = 0.0;
     current_marker.color.a = 1.0;
     
-    current_pub.publish(current_marker);
+    current_marker_pub.publish(current_marker);
 
     // Publish setpoint pose
     visualization_msgs::Marker setpoint_marker;
@@ -278,7 +279,7 @@ void publishPoseAndSetpoint(const geometry_msgs::PoseStamped& current_pose,
     setpoint_marker.color.b = 0.0;
     setpoint_marker.color.a = 1.0;
     
-    setpoint_pub.publish(setpoint_marker);
+    setpoint_marker_pub.publish(setpoint_marker);
 }
 
 /**

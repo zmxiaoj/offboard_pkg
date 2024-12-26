@@ -84,13 +84,8 @@
     
     <!-- 启动 rosbag record 节点 -->
     <node pkg="rosbag" type="record" name="rosbag_record_mocap" output="screen"
-            args="--output-prefix $(arg record_path)/$(arg record_prefix)
-                --split --size=5120 
-                /mavros/state
-                /mavros/local_position/pose
-                /mavros/setpoint_position/local
-                /vrpn_client_node/$(arg rigid_body_name)/pose
-                /vrpn_client_node/$(arg rigid_body_name)/pose_throttled"
+        args="--output-prefix $(arg record_path)/$(arg record_prefix)
+            --split --size=5120"
     />
 
 </launch>

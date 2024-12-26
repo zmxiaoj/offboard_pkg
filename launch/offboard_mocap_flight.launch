@@ -93,4 +93,9 @@
                 /vrpn_client_node/$(arg rigid_body_name)/pose_throttled"
     />
 
+    <!-- 启动 rviz 节点 -->
+    <!-- <node pkg="rviz" type="rviz" name="rviz" output="screen">
+        <param name="config" value="$(find offboard_pkg)/config/offboard_mocap_flight.rviz"/>
+    </node> -->
+
 </launch>

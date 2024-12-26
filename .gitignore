@@ -1,4 +1,5 @@
 .vscode/
 build
 .vscode
-bag
+bag/*
+log/*

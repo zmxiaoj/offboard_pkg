@@ -21,7 +21,7 @@ bool initial_pose_received = false;
 
 // Callback declarations
 void state_cb(const mavros_msgs::State::ConstPtr& msg);
-void land_command_cb(const std_msgs::Bool::ConstPtr& msg);
+void land_cmd_cb(const std_msgs::Bool::ConstPtr& msg);
 void pose_cb(const geometry_msgs::PoseStamped::ConstPtr& msg);
 
 // Util function declarations
@@ -43,8 +43,8 @@ int main(int argc, char **argv)
     // Subscribers
     ros::Subscriber state_sub = nh.subscribe<mavros_msgs::State>
             ("/mavros/state", 10, state_cb);
-    ros::Subscriber land_command_sub = nh.subscribe<std_msgs::Bool>
-            ("/land_command", 10, land_command_cb);
+    ros::Subscriber land_cmd_sub = nh.subscribe<std_msgs::Bool>
+            ("/land_cmd", 10, land_cmd_cb);
     ros::Subscriber pose_sub = nh.subscribe<geometry_msgs::PoseStamped>
             ("/mavros/local_position/pose", 10, pose_cb);
     
@@ -192,7 +192,7 @@ void state_cb(const mavros_msgs::State::ConstPtr& msg)
 {
     current_state = *msg;
 }
-void land_command_cb(const std_msgs::Bool::ConstPtr& msg) 
+void land_cmd_cb(const std_msgs::Bool::ConstPtr& msg) 
 {
     land_command_received = msg->data;
 }
