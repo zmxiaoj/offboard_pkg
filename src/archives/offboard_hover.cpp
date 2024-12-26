@@ -101,7 +101,7 @@ int main(int argc, char **argv)
             last_request = now;
         }
 
-        local_pos_pub.publish(takeoff_positon);
+        local_pos_pub.publish(takeoff_position);
 
         ros::spinOnce();
         rate.sleep();

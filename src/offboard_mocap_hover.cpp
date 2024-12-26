@@ -105,28 +105,32 @@ int main(int argc, char **argv)
     arm_cmd.request.value = true;
 
     ros::Time last_request = ros::Time::now();
+    while (ros::ok()) {
+        if (current_state.mode != "OFFBOARD") {
+            if (set_mode_client.call(offb_set_mode) && offb_set_mode.response.mode_sent)
+                ROS_INFO("Offboard enabled");
+            else 
+                ROS_WARN("Failed to OFFBOARD mode");
+        } 
+        if (!current_state.armed) {
+            if (arming_client.call(arm_cmd) && arm_cmd.response.success)
+                ROS_INFO("Vehicle armed");
+            else 
+                ROS_WARN("Failed to ARM");
+        }
+
+        if ((ros::Time::now() - last_request > ros::Duration(5.0))) 
+            break;
+ 
+        ros::spinOnce();
+        rate.sleep();
+    }
+
 
     while (ros::ok()) {
         if (land_command_received) {
             ROS_INFO("Land command received, exiting offboard mode and landing...");
             break;
-        }
-
-        ros::Time now = ros::Time::now();
-        if (now - last_request > ros::Duration(5.0)) {
-            if (current_state.mode != "OFFBOARD") {
-                if (set_mode_client.call(offb_set_mode) && offb_set_mode.response.mode_sent)
-                    ROS_INFO("Offboard enabled");
-                else 
-                    ROS_WARN("Failed to OFFBOARD mode"); 
-            } 
-            else if (!current_state.armed) {
-                if (arming_client.call(arm_cmd) && arm_cmd.response.success)
-                    ROS_INFO("Vehicle armed");
-                else 
-                    ROS_WARN("Failed to ARM");
-            }
-            last_request = now;
         }
 
         local_pos_pub.publish(setpoint_pose);
