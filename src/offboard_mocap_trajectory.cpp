@@ -1,29 +1,36 @@
 /**
  * @file offboard_mocap_trajectory.cpp
- * @brief This node controls the UAV to follow different trajectories (hover, circle, rectangle, eight) using offboard mode.
+ * @brief This node controls the UAV to follow different trajectories using offboard mode with motion capture system.
  * 
- * This node subscribes to the current state, pose, and command topics, and publishes the setpoint position and visualization markers.
- * It also handles arming and setting the mode of the UAV.
+ * Flight Process:
+ * 1. Takeoff: The UAV first takes off to the specified height
+ * 2. Trajectory Following: After takeoff, UAV follows the selected trajectory while maintaining height
+ * 3. Landing: UAV lands when receiving land command
+ * 
+ * Height Control Strategy:
+ * - During takeoff: Uses height parameter from configuration
+ * - During trajectory: Maintains the height at trajectory switching point
+ * - Trajectory switching: Preserves current height, only changes x-y motion
  * 
  * Parameters:
- * - /trajectory/height: Flight height
+ * - /trajectory/height: Initial takeoff height [0.5-2.0m]
  * - /trajectory/takeoff_position_x: Takeoff position x-coordinate
  * - /trajectory/takeoff_position_y: Takeoff position y-coordinate
- * - /trajectory/radius: Radius for circular and eight-shaped trajectories
- * - /trajectory/rect_width: Width of the rectangular trajectory
- * - /trajectory/rect_height: Height of the rectangular trajectory
- * - /trajectory/speed: Flight speed in m/s
+ * - /trajectory/radius: Radius for circular and eight-shaped trajectories [0.0-3.0m]
+ * - /trajectory/rect_width: Width of the rectangular trajectory [max: 5.0m]
+ * - /trajectory/rect_height: Height of the rectangular trajectory [max: 5.0m]
+ * - /trajectory/speed: Flight speed [0.1-1.0m/s]
  * 
  * Subscribers:
  * - /mavros/state: Current state of the UAV
- * - /mavros/local_position/pose: Current pose of the UAV
- * - /trajectory_cmd: Command to switch trajectory type
+ * - /mavros/local_position/pose: Current pose from motion capture
+ * - /trajectory_cmd: Command to switch trajectory type (hover/circle/rectangle/eight)
+ * - /land_cmd: Command to trigger landing
  * 
  * Publishers:
  * - /mavros/setpoint_position/local: Setpoint position for the UAV
- * - /visualization/trajectory: Visualization markers for the trajectory
- * - /current_pose: Current pose of the UAV
- * - /setpoint_pose: Setpoint pose of the UAV
+ * - /visualization/current_pose: Visualization marker for current pose
+ * - /visualization/setpoint_pose: Visualization marker for target pose
  * 
  * Service Clients:
  * - /mavros/cmd/arming: Service to arm the UAV
@@ -48,6 +55,7 @@ geometry_msgs::PoseStamped initial_pose;
 geometry_msgs::PoseStamped hover_setpoint_pose;
 bool land_command_received = false;
 bool initial_pose_received = false;
+bool takeoff_completed = false;
 
 enum class TrajectoryType {
     HOVER = 0,
@@ -57,15 +65,19 @@ enum class TrajectoryType {
 };
 TrajectoryType trajectory_type = TrajectoryType::HOVER;
 
+// Add these variables after the TrajectoryType definition
+geometry_msgs::PoseStamped trajectory_start_pose;
+ros::Time trajectory_switch_time;
+
 // Trajectory Parameters
 struct TrajectoryParams {
-    float height = 1.0;          // 飞行高度
+    float height = 1.0;          // flight height(m)
     float takeoff_position_x = 0.0;
     float takeoff_position_y = 0.0;
-    float radius = 1.0;          // 圆形/8字轨迹半径
-    float rect_width = 4.0;      // 矩形宽度
-    float rect_height = 3.0;     // 矩形长度
-    float speed = 0.5;           // 飞行速度 m/s
+    float radius = 1.0;          // circle/eight radius(m)
+    float rect_width = 4.0;      // rectangle width(m)
+    float rect_height = 3.0;     // rectangle height(m)
+    float speed = 0.5;           // flight speed(m/s)
 } params;
 
 // Callback
@@ -171,6 +183,9 @@ int main(int argc, char **argv)
         ros::spinOnce();
         rate.sleep();
     }
+    // Use the takeoff position as the initial trajectory position
+    takeoff_completed = true;  
+    trajectory_start_pose = hover_setpoint_pose; 
 
     // Switch to OFFBOARD mode and arm
     mavros_msgs::SetMode offb_set_mode;
@@ -179,29 +194,32 @@ int main(int argc, char **argv)
     arm_cmd.request.value = true;
 
     ros::Time last_request = ros::Time::now();
+    while (ros::ok()) {
+        if (current_state.mode != "OFFBOARD") {
+            if (set_mode_client.call(offb_set_mode) && offb_set_mode.response.mode_sent)
+                ROS_INFO("Offboard enabled");
+            else 
+                ROS_WARN("Failed to OFFBOARD mode");
+        } 
+        if (!current_state.armed) {
+            if (arming_client.call(arm_cmd) && arm_cmd.response.success)
+                ROS_INFO("Vehicle armed");
+            else 
+                ROS_WARN("Failed to ARM");
+        }
+
+        if ((ros::Time::now() - last_request > ros::Duration(5.0))) 
+            break;
+ 
+        ros::spinOnce();
+        rate.sleep();
+    }
 
     // Main loop
     while (ros::ok()) {
         if (land_command_received) {
             ROS_INFO("Land command received, exiting offboard mode and landing...");
             break;
-        }
-
-        ros::Time now = ros::Time::now();
-        if (now - last_request > ros::Duration(5.0)) {
-            if (current_state.mode != "OFFBOARD") {
-                if (set_mode_client.call(offb_set_mode) && offb_set_mode.response.mode_sent)
-                    ROS_INFO("Offboard enabled");
-                else 
-                    ROS_WARN("Failed to OFFBOARD mode"); 
-            } 
-            else if (!current_state.armed) {
-                if (arming_client.call(arm_cmd) && arm_cmd.response.success)
-                    ROS_INFO("Vehicle armed");
-                else 
-                    ROS_WARN("Failed to ARM");
-            }
-            last_request = now;
         }
 
         // Calculate and publish position setpoint
@@ -242,6 +260,8 @@ void pose_cb(const geometry_msgs::PoseStamped::ConstPtr& msg)
 void trajectory_cmd_cb(const std_msgs::String::ConstPtr& msg) 
 {
     std::string cmd = msg->data;
+    TrajectoryType previous_type = trajectory_type;
+    
     if (cmd == "hover") {
         trajectory_type = TrajectoryType::HOVER;
     } 
@@ -254,7 +274,12 @@ void trajectory_cmd_cb(const std_msgs::String::ConstPtr& msg)
     else if (cmd == "eight") {
         trajectory_type = TrajectoryType::EIGHT;
     }
-    ROS_INFO("Switching to trajectory: %s", cmd.c_str());
+
+    if (previous_type != trajectory_type) {
+        trajectory_start_pose = current_pose;  // Use current pose as new reference
+        trajectory_switch_time = ros::Time::now();
+        ROS_INFO("\033[33mSwitching to trajectory: %s\033[0m", cmd.c_str());
+    }
 }
 
 void land_cmd_cb(const std_msgs::Bool::ConstPtr& msg) 
@@ -262,94 +287,110 @@ void land_cmd_cb(const std_msgs::Bool::ConstPtr& msg)
     land_command_received = msg->data;
 }
 
-// TODO: change the fixed setpoint
 geometry_msgs::PoseStamped calculateTrajectorySetpoint(const ros::Time& start_time) 
 {
     geometry_msgs::PoseStamped setpoint_pose;
-    double t = (ros::Time::now() - start_time).toSec();
+    geometry_msgs::Pose relative_pose;
+    double t = (ros::Time::now() - trajectory_switch_time).toSec();
+    
+    // Determine the altitude to use based on the flight phase
+    float target_height;
+    if (!takeoff_completed) 
+        // Use preset altitude during takeoff
+        target_height = params.height;
+    else 
+        // Maintain the current altitude during the trajectory flight phase
+        target_height = trajectory_start_pose.pose.position.z;
     
     if (trajectory_type == TrajectoryType::HOVER) {
-        setpoint_pose = hover_setpoint_pose;
+        relative_pose.position.x = 0;
+        relative_pose.position.y = 0;
+        relative_pose.position.z = 0;
+        relative_pose.orientation.w = 1;
+        relative_pose.orientation.x = 0;
+        relative_pose.orientation.y = 0;
+        relative_pose.orientation.z = 0;
     }
-    else {
-        geometry_msgs::Pose relative_pose;
+    else if (trajectory_type == TrajectoryType::CIRCLE) {
+        double omega = params.speed / params.radius;
+        relative_pose.position.x = params.radius * cos(omega * t);
+        relative_pose.position.y = params.radius * sin(omega * t);
+        relative_pose.position.z = 0; 
         
-        if (trajectory_type == TrajectoryType::CIRCLE) {
-            double omega = params.speed / params.radius;
-            relative_pose.position.x = params.radius * cos(omega * t);
-            relative_pose.position.y = params.radius * sin(omega * t);
-            relative_pose.position.z = params.height;
-            
-            double yaw = omega * t + M_PI/2;
-            relative_pose.orientation.x = 0;
-            relative_pose.orientation.y = 0;
-            relative_pose.orientation.w = cos(yaw/2);
-            relative_pose.orientation.z = sin(yaw/2);
-        }
-        else if (trajectory_type == TrajectoryType::RECTANGLE) {
-            double perimeter = 2 * (params.rect_width + params.rect_height);
-            double s = fmod(params.speed * t, perimeter);
-            
-            // Position calculation
-            if (s < params.rect_width) {
-                relative_pose.position.x = s;
-                relative_pose.position.y = 0;
-                // Moving along +X axis
-                double yaw = 0;
-                relative_pose.orientation.w = cos(yaw/2);
-                relative_pose.orientation.x = 0;
-                relative_pose.orientation.y = 0;
-                relative_pose.orientation.z = sin(yaw/2);
-            }
-            else if (s < params.rect_width + params.rect_height) {
-                relative_pose.position.x = params.rect_width;
-                relative_pose.position.y = s - params.rect_width;
-                // Moving along +Y axis
-                double yaw = M_PI/2;
-                relative_pose.orientation.w = cos(yaw/2);
-                relative_pose.orientation.x = 0;
-                relative_pose.orientation.y = 0;
-                relative_pose.orientation.z = sin(yaw/2);
-            }
-            else if (s < 2 * params.rect_width + params.rect_height) {
-                relative_pose.position.x = params.rect_width - (s - params.rect_width - params.rect_height);
-                relative_pose.position.y = params.rect_height;
-                // Moving along -X axis
-                double yaw = M_PI;
-                relative_pose.orientation.w = cos(yaw/2);
-                relative_pose.orientation.x = 0;
-                relative_pose.orientation.y = 0;
-                relative_pose.orientation.z = sin(yaw/2);
-            }
-            else {
-                relative_pose.position.x = 0;
-                relative_pose.position.y = params.rect_height - (s - 2 * params.rect_width - params.rect_height);
-                // Moving along -Y axis
-                double yaw = -M_PI/2;
-                relative_pose.orientation.w = cos(yaw/2);
-                relative_pose.orientation.x = 0;
-                relative_pose.orientation.y = 0;
-                relative_pose.orientation.z = sin(yaw/2);
-            }
-            relative_pose.position.z = params.height;
-        }
-        else if (trajectory_type == TrajectoryType::EIGHT) {
-            double omega = params.speed / params.radius;
-            relative_pose.position.x = params.radius * sin(omega * t);
-            relative_pose.position.y = params.radius * sin(omega * t * 2);
-            relative_pose.position.z = params.height;
-            
-            // Calculate tangent direction
-            double dx = params.radius * omega * cos(omega * t);
-            double dy = 2 * params.radius * omega * cos(omega * t * 2);
-            double yaw = atan2(dy, dx);
+        double yaw = omega * t + M_PI/2;
+        relative_pose.orientation.w = cos(yaw/2);
+        relative_pose.orientation.x = 0;
+        relative_pose.orientation.y = 0;
+        relative_pose.orientation.z = sin(yaw/2);
+    }
+    else if (trajectory_type == TrajectoryType::RECTANGLE) {
+        double perimeter = 2 * (params.rect_width + params.rect_height);
+        double s = fmod(params.speed * t, perimeter);
+        
+        // Position calculation
+        if (s < params.rect_width) {
+            relative_pose.position.x = s;
+            relative_pose.position.y = 0;
+            // Moving along +X axis
+            double yaw = 0;
             relative_pose.orientation.w = cos(yaw/2);
             relative_pose.orientation.x = 0;
             relative_pose.orientation.y = 0;
             relative_pose.orientation.z = sin(yaw/2);
         }
+        else if (s < params.rect_width + params.rect_height) {
+            relative_pose.position.x = params.rect_width;
+            relative_pose.position.y = s - params.rect_width;
+            // Moving along +Y axis
+            double yaw = M_PI/2;
+            relative_pose.orientation.w = cos(yaw/2);
+            relative_pose.orientation.x = 0;
+            relative_pose.orientation.y = 0;
+            relative_pose.orientation.z = sin(yaw/2);
+        }
+        else if (s < 2 * params.rect_width + params.rect_height) {
+            relative_pose.position.x = params.rect_width - (s - params.rect_width - params.rect_height);
+            relative_pose.position.y = params.rect_height;
+            // Moving along -X axis
+            double yaw = M_PI;
+            relative_pose.orientation.w = cos(yaw/2);
+            relative_pose.orientation.x = 0;
+            relative_pose.orientation.y = 0;
+            relative_pose.orientation.z = sin(yaw/2);
+        }
+        else {
+            relative_pose.position.x = 0;
+            relative_pose.position.y = params.rect_height - (s - 2 * params.rect_width - params.rect_height);
+            // Moving along -Y axis
+            double yaw = -M_PI/2;
+            relative_pose.orientation.w = cos(yaw/2);
+            relative_pose.orientation.x = 0;
+            relative_pose.orientation.y = 0;
+            relative_pose.orientation.z = sin(yaw/2);
+        }
+        relative_pose.position.z = 0;
+    }
+    else if (trajectory_type == TrajectoryType::EIGHT) {
+        double omega = params.speed / params.radius;
+        relative_pose.position.x = params.radius * sin(omega * t);
+        relative_pose.position.y = params.radius * sin(omega * t * 2);
+        relative_pose.position.z = 0;
         
-        setpoint_pose = transformPose2Setpoint(relative_pose, initial_pose);
+        // Calculate tangent direction
+        double dx = params.radius * omega * cos(omega * t);
+        double dy = 2 * params.radius * omega * cos(omega * t * 2);
+        double yaw = atan2(dy, dx);
+        relative_pose.orientation.w = cos(yaw/2);
+        relative_pose.orientation.x = 0;
+        relative_pose.orientation.y = 0;
+        relative_pose.orientation.z = sin(yaw/2);
+    }
+        
+    setpoint_pose = transformPose2Setpoint(relative_pose, trajectory_start_pose);
+    
+    // Set target altitude according to flight phase
+    if (!takeoff_completed) {
+        setpoint_pose.pose.position.z = target_height;
     }
     
     return setpoint_pose;

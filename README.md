@@ -1,38 +1,43 @@
-## Basic offboard ros package
+# Offboard ROS Package
 
-Three are two parts for the ros package "offboard_pkg"
-- Utils is for the basic tools for the pose&position estimator
-- Offboard is for the offboard control
+ROS package for UAV offboard control with various functionalities:
+- Basic position control
+- Trajectory following with motion capture
+- Position estimation utilities
 
-### Utils 
+## Utils 
 ```shell
-## offboard_pos_estimator.launch
-## launch 1.mavros 2.vrpn 3.pos_estimator node
-roslaunch offboard_pkg offboard_pos_estimator.launch
-
+# offboard_mocap_flight
+## Launch 1.mavros 2.vrpn 3.pos_estimator node
+## input_source:= rigid_body_name:= mocap_frame_type:= 
+### For multi-terminal
+roslaunch offboard_pkg offboard_mocap_flight.launch
+### For single-terminal
+roslaunch offboard_pkg offboard_mocap_flight_nx.launch
 ```
-
-
-
 
 ### Offboard
 
 ```shell
-## offboard_node.launch
+# offboard_hover
 ## takeoff_position_* is the position for the takeoff setpoint
-roslaunch offboard_pkg offboard_node.launch takeoff_position_x:=2.0 takeoff_position_y:=2.0 takeoff_position_z:=2.0
+roslaunch offboard_pkg offboard_hover.launch takeoff_position_x:=2.0 takeoff_position_y:=2.0 takeoff_position_z:=2.0
+## land command 
+rostopic pub -n 1 /land_cmd std_msgs/Bool "data: true"
 
-### land command 
-rostopic pub /land_command std_msgs/Bool "data: true"
 
-
-## offboard_position.launch
+# offboard_traverse
 ## 
-roslaunch offboard_pkg offboard_position.launch 
+roslaunch offboard_pkg offboard_traverse.launch hover_time:=10.0
+## land command 
+rostopic pub -n 1 /land_cmd std_msgs/Bool "data: true"
 
-## offboard_rosbag.launch
-## get setpoint from rosbag and publish to mavros
-## defalult rosbag_path:=/home/amov/0713.bag
-roslaunch offboard_pkg offboard_rosbag.launch rosbag_path:=/path/to/your/rosbag.bag
+# offboard_trajectory
+## Terminal_0
+roslaunch offboard_pkg offboard_trajectory.launch
+## Terminal_1
+### Input "hover/circle/rectangle/land/Ctrl+C"
+python3 offboard_pkg/script/send_trajectory_cmd.py
+
 ```
 
