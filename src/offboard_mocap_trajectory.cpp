@@ -18,7 +18,7 @@
  * - /trajectory/takeoff_position_y: Takeoff position y-coordinate
  * - /trajectory/radius: Radius for circular and eight-shaped trajectories [0.0-3.0m]
  * - /trajectory/rect_width: Width of the rectangular trajectory [max: 5.0m]
- * - /trajectory/rect_height: Height of the rectangular trajectory [max: 5.0m]
+ * - /trajectory/rect_length: Height of the rectangular trajectory [max: 5.0m]
  * - /trajectory/speed: Flight speed [0.1-1.0m/s]
  * 
  * Subscribers:
@@ -74,9 +74,9 @@ struct TrajectoryParams {
     float height = 1.0;          // flight height(m)
     float takeoff_position_x = 0.0;
     float takeoff_position_y = 0.0;
-    float radius = 1.0;          // circle/eight radius(m)
+    float radius = 2.0;          // circle/eight radius(m)
     float rect_width = 4.0;      // rectangle width(m)
-    float rect_height = 3.0;     // rectangle height(m)
+    float rect_length = 3.0;     // rectangle length(m)
     float speed = 0.5;           // flight speed(m/s)
 } params;
 
@@ -132,9 +132,9 @@ int main(int argc, char **argv)
     nh.param<float>("height", params.height, 1.0);
     nh.param<float>("takeoff_position_x", params.takeoff_position_x, 0.0);
     nh.param<float>("takeoff_position_y", params.takeoff_position_y, 0.0);
-    nh.param<float>("radius", params.radius, 1.0);
-    nh.param<float>("rect_width", params.rect_width, 2.0);
-    nh.param<float>("rect_height", params.rect_height, 2.0);
+    nh.param<float>("radius", params.radius, 2.0);
+    nh.param<float>("rect_width", params.rect_width, 3.0);
+    nh.param<float>("rect_length", params.rect_length, 4.0);
     nh.param<float>("speed", params.speed, 0.5);
 
     // Clamp
@@ -142,7 +142,7 @@ int main(int argc, char **argv)
     params.speed = std::min(std::max(params.speed, 0.1f), 1.0f);
     params.radius = std::min(params.radius, 3.0f);
     params.rect_width = std::min(params.rect_width, 5.0f);
-    params.rect_height = std::min(params.rect_height, 5.0f);
+    params.rect_length = std::min(params.rect_length, 5.0f);
 
     std::stringstream ss;
     ss  << "\n================ Flight Parameters ================\n"
@@ -151,7 +151,7 @@ int main(int argc, char **argv)
         << "Speed:      " << params.speed << " m/s [0.1 - 1.0]\n"
         << "Radius:     " << params.radius << " m   [0.0 - 3.0]\n"
         << "Rectangle:  " << params.rect_width << " x " 
-        << params.rect_height << " m [max: 5.0]\n"
+        << params.rect_length << " m [max: 5.0]\n"
         << "================================================\n";
     ROS_INFO_STREAM(ss.str());
 
@@ -324,7 +324,7 @@ geometry_msgs::PoseStamped calculateTrajectorySetpoint(const ros::Time& start_ti
         relative_pose.orientation.z = sin(yaw/2);
     }
     else if (trajectory_type == TrajectoryType::RECTANGLE) {
-        double perimeter = 2 * (params.rect_width + params.rect_height);
+        double perimeter = 2 * (params.rect_width + params.rect_length);
         double s = fmod(params.speed * t, perimeter);
         
         // Position calculation
@@ -338,7 +338,7 @@ geometry_msgs::PoseStamped calculateTrajectorySetpoint(const ros::Time& start_ti
             relative_pose.orientation.y = 0;
             relative_pose.orientation.z = sin(yaw/2);
         }
-        else if (s < params.rect_width + params.rect_height) {
+        else if (s < params.rect_width + params.rect_length) {
             relative_pose.position.x = params.rect_width;
             relative_pose.position.y = s - params.rect_width;
             // Moving along +Y axis
@@ -348,9 +348,9 @@ geometry_msgs::PoseStamped calculateTrajectorySetpoint(const ros::Time& start_ti
             relative_pose.orientation.y = 0;
             relative_pose.orientation.z = sin(yaw/2);
         }
-        else if (s < 2 * params.rect_width + params.rect_height) {
-            relative_pose.position.x = params.rect_width - (s - params.rect_width - params.rect_height);
-            relative_pose.position.y = params.rect_height;
+        else if (s < 2 * params.rect_width + params.rect_length) {
+            relative_pose.position.x = params.rect_width - (s - params.rect_width - params.rect_length);
+            relative_pose.position.y = params.rect_length;
             // Moving along -X axis
             double yaw = M_PI;
             relative_pose.orientation.w = cos(yaw/2);
@@ -360,7 +360,7 @@ geometry_msgs::PoseStamped calculateTrajectorySetpoint(const ros::Time& start_ti
         }
         else {
             relative_pose.position.x = 0;
-            relative_pose.position.y = params.rect_height - (s - 2 * params.rect_width - params.rect_height);
+            relative_pose.position.y = params.rect_length - (s - 2 * params.rect_width - params.rect_length);
             // Moving along -Y axis
             double yaw = -M_PI/2;
             relative_pose.orientation.w = cos(yaw/2);
