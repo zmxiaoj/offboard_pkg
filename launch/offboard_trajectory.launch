@@ -5,9 +5,9 @@
         height: 1.0
         takeoff_position_x: 0.0
         takeoff_position_y: 0.0
-        radius: 1.0
-        rect_width: 2.0
-        rect_height: 2.0
+        radius: 2.0
+        rect_width: 3.0
+        rect_height: 4.0
         speed: 0.5
     </rosparam>
 
