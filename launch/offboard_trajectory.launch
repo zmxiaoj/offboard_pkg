@@ -1,26 +1,26 @@
 <launch>
-    
-    <!-- Trajectory parameters -->
-    <rosparam ns="trajectory">
-        height: 1.0
-        takeoff_position_x: 0.0
-        takeoff_position_y: 0.0
-        radius: 2.0
-        rect_width: 3.0
-        rect_height: 4.0
-        speed: 0.5
-    </rosparam>
+    <!-- Define parameters with default values -->
+    <arg name="height" default="1.0"/>
+    <arg name="takeoff_x" default="0.0"/>
+    <arg name="takeoff_y" default="0.0"/>
+    <arg name="radius" default="4.0"/>
+    <arg name="rect_width" default="3.0"/>
+    <arg name="rect_height" default="4.0"/>
+    <arg name="eight_width" default="2.0"/>
+    <arg name="eight_length" default="2.0"/>
+    <arg name="speed" default="0.5"/>
 
-    <!-- 定义起飞位置参数 -->
-    <!-- <arg name="takeoff_position_x" default="0.0"/>
-    <arg name="takeoff_position_y" default="0.0"/>
-    <arg name="takeoff_position_z" default="1.0"/> -->
-
-    <!-- 启动offboard_hover节点 -->
+    <!-- Launch trajectory node -->
     <node pkg="offboard_pkg" type="offboard_trajectory" name="offboard_trajectory_node" output="screen">
-        <!-- 传递参数到节点 -->
-        <!-- <param name="takeoff_position_x" value="$(arg takeoff_position_x)"/>
-        <param name="takeoff_position_y" value="$(arg takeoff_position_y)"/>
-        <param name="takeoff_position_z" value="$(arg takeoff_position_z)"/> -->
+        <!-- Pass parameters to node -->
+        <param name="height" value="$(arg height)"/>
+        <param name="takeoff_position_x" value="$(arg takeoff_x)"/>
+        <param name="takeoff_position_y" value="$(arg takeoff_y)"/>
+        <param name="radius" value="$(arg radius)"/>
+        <param name="rect_width" value="$(arg rect_width)"/>
+        <param name="rect_height" value="$(arg rect_height)"/>
+        <param name="eight_width" value="$(arg eight_width)"/>
+        <param name="eight_length" value="$(arg eight_length)"/>
+        <param name="speed" value="$(arg speed)"/>
     </node>
 </launch>

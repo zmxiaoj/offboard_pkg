@@ -77,6 +77,8 @@ struct TrajectoryParams {
     float radius = 2.0;          // circle/eight radius(m)
     float rect_width = 4.0;      // rectangle width(m)
     float rect_length = 3.0;     // rectangle length(m)
+    float eight_width = 2.0;     // eight width(m)
+    float eight_length = 2.0;    // eight length(m)
     float speed = 0.5;           // flight speed(m/s)
 } params;
 
@@ -87,9 +89,9 @@ void trajectory_cmd_cb(const std_msgs::String::ConstPtr& msg);
 void land_cmd_cb(const std_msgs::Bool::ConstPtr& msg);
 
 // Util function
-geometry_msgs::PoseStamped calculateTrajectorySetpoint(const ros::Time& start_time);
+geometry_msgs::PoseStamped calculateTrajectorySetpoint();
 geometry_msgs::PoseStamped transformPose2Setpoint(const geometry_msgs::Pose& relative_pose,
-                                                  const geometry_msgs::PoseStamped& initial_pose);
+                                                  const geometry_msgs::PoseStamped& original_pose);
 void publishPoseAndSetpoint(const geometry_msgs::PoseStamped& current_pose, 
                             const geometry_msgs::PoseStamped& setpoint_pose,
                             const ros::Publisher& current_pub,
@@ -135,6 +137,8 @@ int main(int argc, char **argv)
     nh.param<float>("radius", params.radius, 2.0);
     nh.param<float>("rect_width", params.rect_width, 3.0);
     nh.param<float>("rect_length", params.rect_length, 4.0);
+    nh.param<float>("eight_width", params.eight_width, 2.0);
+    nh.param<float>("eight_length", params.eight_length, 2.0);
     nh.param<float>("speed", params.speed, 0.5);
 
     // Clamp
@@ -143,6 +147,8 @@ int main(int argc, char **argv)
     params.radius = std::min(params.radius, 3.0f);
     params.rect_width = std::min(params.rect_width, 5.0f);
     params.rect_length = std::min(params.rect_length, 5.0f);
+    params.eight_width = std::min(params.eight_width, 4.0f);
+    params.eight_length = std::min(params.eight_length, 4.0f);
 
     std::stringstream ss;
     ss  << "\n================ Flight Parameters ================\n"
@@ -223,7 +229,7 @@ int main(int argc, char **argv)
         }
 
         // Calculate and publish position setpoint
-        geometry_msgs::PoseStamped setpoint_pose = calculateTrajectorySetpoint(trajectory_start_time);
+        geometry_msgs::PoseStamped setpoint_pose = calculateTrajectorySetpoint();
         local_pos_pub.publish(setpoint_pose);
         // Visualize trajectory
         publishPoseAndSetpoint(current_pose, setpoint_pose, current_pose_marker_pub, setpoint_pose_marker_pub);
@@ -287,7 +293,7 @@ void land_cmd_cb(const std_msgs::Bool::ConstPtr& msg)
     land_command_received = msg->data;
 }
 
-geometry_msgs::PoseStamped calculateTrajectorySetpoint(const ros::Time& start_time) 
+geometry_msgs::PoseStamped calculateTrajectorySetpoint() 
 {
     geometry_msgs::PoseStamped setpoint_pose;
     geometry_msgs::Pose relative_pose;
@@ -312,12 +318,13 @@ geometry_msgs::PoseStamped calculateTrajectorySetpoint(const ros::Time& start_ti
         relative_pose.orientation.z = 0;
     }
     else if (trajectory_type == TrajectoryType::CIRCLE) {
+        // heading to +X&-Y axis
         double omega = params.speed / params.radius;
-        relative_pose.position.x = params.radius * cos(omega * t);
-        relative_pose.position.y = params.radius * sin(omega * t);
+        relative_pose.position.x = params.radius * sin(omega * t);
+        relative_pose.position.y = params.radius * (cos(omega * t) - 1);
         relative_pose.position.z = 0; 
         
-        double yaw = omega * t + M_PI/2;
+        double yaw = - omega * t;
         relative_pose.orientation.w = cos(yaw/2);
         relative_pose.orientation.x = 0;
         relative_pose.orientation.y = 0;
@@ -331,7 +338,8 @@ geometry_msgs::PoseStamped calculateTrajectorySetpoint(const ros::Time& start_ti
         if (s < params.rect_width) {
             relative_pose.position.x = s;
             relative_pose.position.y = 0;
-            // Moving along +X axis
+            relative_pose.position.z = 0; 
+            // Moving along +X axisZ
             double yaw = 0;
             relative_pose.orientation.w = cos(yaw/2);
             relative_pose.orientation.x = 0;
@@ -341,6 +349,7 @@ geometry_msgs::PoseStamped calculateTrajectorySetpoint(const ros::Time& start_ti
         else if (s < params.rect_width + params.rect_length) {
             relative_pose.position.x = params.rect_width;
             relative_pose.position.y = s - params.rect_width;
+            relative_pose.position.z = 0; 
             // Moving along +Y axis
             double yaw = M_PI/2;
             relative_pose.orientation.w = cos(yaw/2);
@@ -351,6 +360,7 @@ geometry_msgs::PoseStamped calculateTrajectorySetpoint(const ros::Time& start_ti
         else if (s < 2 * params.rect_width + params.rect_length) {
             relative_pose.position.x = params.rect_width - (s - params.rect_width - params.rect_length);
             relative_pose.position.y = params.rect_length;
+            relative_pose.position.z = 0; 
             // Moving along -X axis
             double yaw = M_PI;
             relative_pose.orientation.w = cos(yaw/2);
@@ -361,6 +371,7 @@ geometry_msgs::PoseStamped calculateTrajectorySetpoint(const ros::Time& start_ti
         else {
             relative_pose.position.x = 0;
             relative_pose.position.y = params.rect_length - (s - 2 * params.rect_width - params.rect_length);
+            relative_pose.position.z = 0; 
             // Moving along -Y axis
             double yaw = -M_PI/2;
             relative_pose.orientation.w = cos(yaw/2);
@@ -372,14 +383,15 @@ geometry_msgs::PoseStamped calculateTrajectorySetpoint(const ros::Time& start_ti
     }
     else if (trajectory_type == TrajectoryType::EIGHT) {
         double omega = params.speed / params.radius;
-        relative_pose.position.x = params.radius * sin(omega * t);
-        relative_pose.position.y = params.radius * sin(omega * t * 2);
+        relative_pose.position.x = params.eight_width * sin(omega * t);
+        relative_pose.position.y = params.eight_length * sin(omega * t * 2);
         relative_pose.position.z = 0;
         
         // Calculate tangent direction
-        double dx = params.radius * omega * cos(omega * t);
-        double dy = 2 * params.radius * omega * cos(omega * t * 2);
-        double yaw = atan2(dy, dx);
+        double dx = params.eight_width * omega * cos(omega * t);
+        double dy = 2 * params.eight_length * omega * cos(omega * t * 2);
+        double yaw = atan2(dy, dx); 
+        // double yaw = std::fmod(atan2(dy, dx) - atan2(2 * params.eight_length, params.eight_width), 2 * M_PI);
         relative_pose.orientation.w = cos(yaw/2);
         relative_pose.orientation.x = 0;
         relative_pose.orientation.y = 0;
@@ -400,21 +412,21 @@ geometry_msgs::PoseStamped calculateTrajectorySetpoint(const ros::Time& start_ti
  * @brief Transforms a relative pose to a setpoint pose based on the initial pose.
  * 
  * @param relative_pose The relative pose to be transformed.
- * @param initial_pose The initial pose used as the reference for the transformation.
+ * @param original_pose The initial pose used as the reference for the transformation.
  * @return geometry_msgs::PoseStamped The transformed setpoint pose.
  */
 geometry_msgs::PoseStamped transformPose2Setpoint(const geometry_msgs::Pose& relative_pose,
-                                                  const geometry_msgs::PoseStamped& initial_pose) 
+                                                  const geometry_msgs::PoseStamped& original_pose) 
 {
     geometry_msgs::PoseStamped setpoint;
     
     
     // Get initial pose quaternion[w x y z]
     Eigen::Quaterniond q_initial(
-        initial_pose.pose.orientation.w,
-        initial_pose.pose.orientation.x,
-        initial_pose.pose.orientation.y,
-        initial_pose.pose.orientation.z
+        original_pose.pose.orientation.w,
+        original_pose.pose.orientation.x,
+        original_pose.pose.orientation.y,
+        original_pose.pose.orientation.z
     );
     
     // Convert relative position to Eigen vector
@@ -429,9 +441,9 @@ geometry_msgs::PoseStamped transformPose2Setpoint(const geometry_msgs::Pose& rel
     
     // Add initial position
     // t_setpoint = R_initial * t_relative + t_initial
-    setpoint.pose.position.x = p_global.x() + initial_pose.pose.position.x;
-    setpoint.pose.position.y = p_global.y() + initial_pose.pose.position.y;
-    setpoint.pose.position.z = p_global.z() + initial_pose.pose.position.z;
+    setpoint.pose.position.x = p_global.x() + original_pose.pose.position.x;
+    setpoint.pose.position.y = p_global.y() + original_pose.pose.position.y;
+    setpoint.pose.position.z = p_global.z() + original_pose.pose.position.z;
     
     // Combine rotations for orientation
     Eigen::Quaterniond q_relative(
