@@ -77,7 +77,7 @@ Eigen::Quaternionf drone_pose_quaternion = Eigen::Quaternionf::Identity();
 
 void send_to_fcu();
 
-inline float get_time_diff(const ros::Time &begin_time);
+inline double get_time_diff(const ros::Time &begin_time);
 
 // ********** Callback Functions **********
 
@@ -300,11 +300,12 @@ void pub_state_cb(const ros::TimerEvent& e)
 
 }
 
-inline float get_time_diff(const ros::Time &begin_time)
+
+inline double get_time_diff(const ros::Time &begin_time)
 {
     ros::Time time_now = ros::Time::now();
-    float currTimeSec = time_now.sec - begin_time.sec;
-    float currTimenSec = time_now.nsec / 1e9 - begin_time.nsec / 1e9;
+    double currTimeSec = time_now.sec - begin_time.sec;
+    double currTimenSec = time_now.nsec / 1e9 - begin_time.nsec / 1e9;
     return (currTimeSec + currTimenSec);
 }
 

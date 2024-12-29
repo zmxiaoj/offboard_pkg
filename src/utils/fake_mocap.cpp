@@ -10,7 +10,7 @@ int main(int argc, char **argv)
 
     ros::Publisher mocap_pub = nh.advertise<geometry_msgs::PoseStamped>("/vrpn_client_node/uav/pose", 1000);
 
-    ros::Rate loop_rate(100.0); // 10 Hz
+    ros::Rate loop_rate(120.0); // 10 Hz
 
     Eigen::Vector3f position(1.0, 2.0, 3.0);
     Eigen::Quaternionf quaternion(1.0, 0.0, 0.0, 0.0);
