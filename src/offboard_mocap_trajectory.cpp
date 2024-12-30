@@ -62,9 +62,12 @@ bool takeoff_completed = false;
 enum class TrajectoryType {
     LANDING = -1,
     HOVER = 0,
-    CIRCLE = 1,
-    RECTANGLE = 2,
-    EIGHT = 3
+    CIRCLE_HEAD = 1,
+    CIRCLE = 2,
+    RECTANGLE_HEAD = 3,
+    RECTANGLE = 4,
+    EIGHT_HEAD = 5,
+    EIGHT = 6,
 };
 TrajectoryType trajectory_type = TrajectoryType::HOVER;
 
@@ -357,6 +360,15 @@ void trajectory_cmd_cb(const std_msgs::String::ConstPtr& msg)
     else if (cmd == "eight") {
         trajectory_type = TrajectoryType::EIGHT;
     }
+    else if (cmd == "circle_head") {
+        trajectory_type = TrajectoryType::CIRCLE_HEAD;
+    }
+    else if (cmd == "rectangle_head") {
+        trajectory_type = TrajectoryType::RECTANGLE_HEAD;
+    }
+    else if (cmd == "eight_head") {
+        trajectory_type = TrajectoryType::EIGHT_HEAD;
+    }
 
     if (previous_type != trajectory_type) {
         trajectory_start_pose = current_pose;  // Use current pose as new reference
@@ -398,7 +410,7 @@ geometry_msgs::PoseStamped calculateTrajectorySetpoint()
         relative_pose.orientation.y = 0;
         relative_pose.orientation.z = 0;
     }
-    else if (trajectory_type == TrajectoryType::CIRCLE) {
+    else if (trajectory_type == TrajectoryType::CIRCLE_HEAD) {
         // heading to +X&-Y axis
         double omega = params.flight_speed / params.circle_radius;
         relative_pose.position.x = params.circle_radius * sin(omega * t);
@@ -411,7 +423,17 @@ geometry_msgs::PoseStamped calculateTrajectorySetpoint()
         relative_pose.orientation.y = 0;
         relative_pose.orientation.z = sin(yaw/2);
     }
-    else if (trajectory_type == TrajectoryType::RECTANGLE) {
+    else if (trajectory_type == TrajectoryType::CIRCLE) {
+        double omega = params.flight_speed / params.circle_radius;
+        relative_pose.position.x = params.circle_radius * sin(omega * t);
+        relative_pose.position.y = params.circle_radius * (cos(omega * t) - 1);
+        relative_pose.position.z = 0; 
+        relative_pose.orientation.w = 1;
+        relative_pose.orientation.x = 0;
+        relative_pose.orientation.y = 0;
+        relative_pose.orientation.z = 0;
+    }
+    else if (trajectory_type == TrajectoryType::RECTANGLE_HEAD) {
         double perimeter = 2 * (params.rect_width + params.rect_length);
         double s = fmod(params.flight_speed * t, perimeter);
         
@@ -462,7 +484,37 @@ geometry_msgs::PoseStamped calculateTrajectorySetpoint()
         }
         relative_pose.position.z = 0;
     }
-    else if (trajectory_type == TrajectoryType::EIGHT) {
+    else if (trajectory_type == TrajectoryType::RECTANGLE) {
+        double perimeter = 2 * (params.rect_width + params.rect_length);
+        double s = fmod(params.flight_speed * t, perimeter);
+        
+        // Position calculation
+        if (s < params.rect_width) {
+            relative_pose.position.x = s;
+            relative_pose.position.y = 0;
+            relative_pose.position.z = 0; 
+        }
+        else if (s < params.rect_width + params.rect_length) {
+            relative_pose.position.x = params.rect_width;
+            relative_pose.position.y = s - params.rect_width;
+            relative_pose.position.z = 0; 
+        }
+        else if (s < 2 * params.rect_width + params.rect_length) {
+            relative_pose.position.x = params.rect_width - (s - params.rect_width - params.rect_length);
+            relative_pose.position.y = params.rect_length;
+            relative_pose.position.z = 0; 
+        }
+        else {
+            relative_pose.position.x = 0;
+            relative_pose.position.y = params.rect_length - (s - 2 * params.rect_width - params.rect_length);
+            relative_pose.position.z = 0; 
+        }
+        relative_pose.orientation.w = 1;
+        relative_pose.orientation.x = 0;
+        relative_pose.orientation.y = 0;
+        relative_pose.orientation.z = 0;
+    }
+    else if (trajectory_type == TrajectoryType::EIGHT_HEAD) {
         double omega = params.flight_speed / params.circle_radius;
         relative_pose.position.x = params.eight_width * sin(omega * t);
         relative_pose.position.y = params.eight_length * sin(omega * t * 2);
@@ -477,6 +529,17 @@ geometry_msgs::PoseStamped calculateTrajectorySetpoint()
         relative_pose.orientation.x = 0;
         relative_pose.orientation.y = 0;
         relative_pose.orientation.z = sin(yaw/2);
+    }
+    else if (trajectory_type == TrajectoryType::EIGHT) {
+        double omega = params.flight_speed / params.circle_radius;
+        relative_pose.position.x = params.eight_width * sin(omega * t);
+        relative_pose.position.y = params.eight_length * sin(omega * t * 2);
+        relative_pose.position.z = 0;
+        // double yaw = std::fmod(atan2(dy, dx) - atan2(2 * params.eight_length, params.eight_width), 2 * M_PI);
+        relative_pose.orientation.w = 1;
+        relative_pose.orientation.x = 0;
+        relative_pose.orientation.y = 0;
+        relative_pose.orientation.z = 0;
     }
         
     setpoint_pose = transformPose2Setpoint(relative_pose, trajectory_start_pose);
@@ -617,12 +680,33 @@ void printPoseInfo(const geometry_msgs::PoseStamped& current_pose,
 {
     std::string traj_type;
     switch(trajectory_type) {
-        case TrajectoryType::LANDING: traj_type = "LANDING"; break;
-        case TrajectoryType::HOVER: traj_type = "HOVER"; break;
-        case TrajectoryType::CIRCLE: traj_type = "CIRCLE"; break;
-        case TrajectoryType::RECTANGLE: traj_type = "RECTANGLE"; break;
-        case TrajectoryType::EIGHT: traj_type = "EIGHT"; break;
-        default: traj_type = "UNKNOWN"; break;
+        case TrajectoryType::LANDING: 
+            traj_type = "\033[31mLANDING\033[0m"; 
+            break;
+        case TrajectoryType::HOVER: 
+            traj_type = "\033[32mHOVER\033[0m"; 
+            break;
+        case TrajectoryType::CIRCLE_HEAD: 
+            traj_type = "\033[33mPREPARE CIRCLE\033[0m"; 
+            break;
+        case TrajectoryType::CIRCLE: 
+            traj_type = "\033[36mCIRCLE\033[0m"; 
+            break;
+        case TrajectoryType::RECTANGLE_HEAD: 
+            traj_type = "\033[33mPREPARE RECTANGLE\033[0m"; 
+            break;
+        case TrajectoryType::RECTANGLE: 
+            traj_type = "\033[36mRECTANGLE\033[0m"; 
+            break;
+        case TrajectoryType::EIGHT_HEAD: 
+            traj_type = "\033[33mPREPARE EIGHT\033[0m"; 
+            break;
+        case TrajectoryType::EIGHT: 
+            traj_type = "\033[36mEIGHT\033[0m"; 
+            break;
+        default: 
+            traj_type = "\033[31mUNKNOWN\033[0m"; 
+            break;
     }
     
     // Format output using stringstream
@@ -634,7 +718,7 @@ void printPoseInfo(const geometry_msgs::PoseStamped& current_pose,
         << " | Armed: " << (current_state.armed ? "\033[32mYES\033[0m" : "\033[31mNO\033[0m") 
         << " | Landed: " << (current_extended_state.landed_state == mavros_msgs::ExtendedState::LANDED_STATE_ON_GROUND ? 
                              "\033[32mYES\033[0m" : "\033[31mNO\033[0m") << "\n"
-        << "Current Mission: " << "\033[33m" << traj_type << "\033[0m" << "\n"
+        << "Current Mission: " << traj_type << "\n"
         << "--------------------------------------------------\n"
         << "Current Position:\n"
         << std::setprecision(3) 
