@@ -13,13 +13,13 @@
  * - Trajectory switching: Preserves current height, only changes x-y motion
  * 
  * Parameters:
- * - /trajectory/height: Initial takeoff height [0.5-2.0m]
+ * - /trajectory/flight_height: Initial takeoff height [0.5-2.0m]
  * - /trajectory/takeoff_position_x: Takeoff position x-coordinate
  * - /trajectory/takeoff_position_y: Takeoff position y-coordinate
- * - /trajectory/radius: Radius for circular and eight-shaped trajectories [0.0-3.0m]
+ * - /trajectory/circle_radius: Radius for circular and eight-shaped trajectories [0.0-3.0m]
  * - /trajectory/rect_width: Width of the rectangular trajectory [max: 5.0m]
  * - /trajectory/rect_length: Height of the rectangular trajectory [max: 5.0m]
- * - /trajectory/speed: Flight speed [0.1-1.0m/s]
+ * - /trajectory/flight_speed: Flight speed [0.1-1.0m/s]
  * 
  * Subscribers:
  * - /mavros/state: Current state of the UAV
@@ -42,6 +42,7 @@
 #include <mavros_msgs/CommandBool.h>
 #include <mavros_msgs/SetMode.h>
 #include <mavros_msgs/State.h>
+#include <mavros_msgs/ExtendedState.h>
 #include <std_msgs/String.h>
 #include <visualization_msgs/Marker.h>
 #include <cmath>
@@ -50,6 +51,7 @@
 
 // Global variables
 mavros_msgs::State current_state;
+mavros_msgs::ExtendedState current_extended_state;
 geometry_msgs::PoseStamped current_pose;
 geometry_msgs::PoseStamped initial_pose;
 geometry_msgs::PoseStamped hover_setpoint_pose;
@@ -58,6 +60,7 @@ bool initial_pose_received = false;
 bool takeoff_completed = false;
 
 enum class TrajectoryType {
+    LANDING = -1,
     HOVER = 0,
     CIRCLE = 1,
     RECTANGLE = 2,
@@ -71,19 +74,21 @@ ros::Time trajectory_switch_time;
 
 // Trajectory Parameters
 struct TrajectoryParams {
-    float height = 1.0;          // flight height(m)
+    float flight_height = 1.0;   // flight height(m)
     float takeoff_position_x = 0.0;
     float takeoff_position_y = 0.0;
-    float radius = 2.0;          // circle/eight radius(m)
+    float circle_radius = 2.0;   // circle radius(m)
     float rect_width = 4.0;      // rectangle width(m)
     float rect_length = 3.0;     // rectangle length(m)
     float eight_width = 2.0;     // eight width(m)
     float eight_length = 2.0;    // eight length(m)
-    float speed = 0.5;           // flight speed(m/s)
+    float flight_speed = 0.5;    // flight speed(m/s)
+    float landing_speed = 0.5;   // landing speed(m/s)
 } params;
 
 // Callback
 void state_cb(const mavros_msgs::State::ConstPtr& msg);
+void extended_state_cb(const mavros_msgs::ExtendedState::ConstPtr& msg);
 void pose_cb(const geometry_msgs::PoseStamped::ConstPtr& msg);
 void trajectory_cmd_cb(const std_msgs::String::ConstPtr& msg);
 void land_cmd_cb(const std_msgs::Bool::ConstPtr& msg);
@@ -108,6 +113,8 @@ int main(int argc, char **argv)
     // Subscribers
     ros::Subscriber state_sub = nh.subscribe<mavros_msgs::State>
             ("/mavros/state", 10, state_cb);
+    ros::Subscriber extended_state_sub = nh.subscribe<mavros_msgs::ExtendedState>
+            ("/mavros/extended_state", 10, extended_state_cb);
     ros::Subscriber pose_sub = nh.subscribe<geometry_msgs::PoseStamped>
             ("/mavros/local_position/pose", 10, pose_cb);
     ros::Subscriber land_cmd_sub = nh.subscribe<std_msgs::Bool>
@@ -130,21 +137,24 @@ int main(int argc, char **argv)
     ros::ServiceClient set_mode_client = nh.serviceClient<mavros_msgs::SetMode>
             ("/mavros/set_mode");
 
-    // Load parameters
-    nh.param<float>("height", params.height, 1.0);
+    float node_rate = 50.0;
+    nh.param<float>("node_rate", node_rate, 50.0);
+    // Load trajectory parameters
+    nh.param<float>("flight_height", params.flight_height, 1.0);
     nh.param<float>("takeoff_position_x", params.takeoff_position_x, 0.0);
     nh.param<float>("takeoff_position_y", params.takeoff_position_y, 0.0);
-    nh.param<float>("radius", params.radius, 2.0);
+    nh.param<float>("circle_radius", params.circle_radius, 2.0);
     nh.param<float>("rect_width", params.rect_width, 3.0);
     nh.param<float>("rect_length", params.rect_length, 4.0);
     nh.param<float>("eight_width", params.eight_width, 2.0);
     nh.param<float>("eight_length", params.eight_length, 2.0);
-    nh.param<float>("speed", params.speed, 0.5);
+    nh.param<float>("flight_speed", params.flight_speed, 0.5);
+    nh.param<float>("landing_speed", params.landing_speed, 0.5);
 
     // Clamp
-    params.height = std::min(std::max(params.height, 0.5f), 2.0f);
-    params.speed = std::min(std::max(params.speed, 0.1f), 1.0f);
-    params.radius = std::min(params.radius, 3.0f);
+    params.flight_height = std::min(std::max(params.flight_height, 0.5f), 2.0f);
+    params.flight_speed = std::min(std::max(params.flight_speed, 0.1f), 1.0f);
+    params.circle_radius = std::min(params.circle_radius, 3.0f);
     params.rect_width = std::min(params.rect_width, 5.0f);
     params.rect_length = std::min(params.rect_length, 5.0f);
     params.eight_width = std::min(params.eight_width, 4.0f);
@@ -152,16 +162,22 @@ int main(int argc, char **argv)
 
     std::stringstream ss;
     ss  << "\n================ Flight Parameters ================\n"
-        << "Height:     " << std::fixed << std::setprecision(2) 
-        << params.height << " m   [0.5 - 2.0]\n"
-        << "Speed:      " << params.speed << " m/s [0.1 - 1.0]\n"
-        << "Radius:     " << params.radius << " m   [0.0 - 3.0]\n"
-        << "Rectangle:  " << params.rect_width << " x " 
+        << "\033[36mBasic Parameters:\033[0m\n"
+        << "  Height:         " << std::fixed << std::setprecision(2) 
+        << params.flight_height << " m   [0.5 - 2.0]\n"
+        << "  Speed:          " << params.flight_speed 
+        << " m/s [0.1 - 1.0]\n"
+        << "\033[36mTrajectory Parameters:\033[0m\n"
+        << "  Circle Radius:  " << params.circle_radius 
+        << " m   [max: 3.0]\n"
+        << "  Rectangle:      " << params.rect_width << " x " 
         << params.rect_length << " m [max: 5.0]\n"
+        << "  Eight-Shape:    " << params.eight_width << " x "
+        << params.eight_length << " m [max: 4.0]\n"
         << "================================================\n";
     ROS_INFO_STREAM(ss.str());
 
-    ros::Rate rate(20.0);
+    ros::Rate rate(node_rate);
     ros::Time trajectory_start_time = ros::Time::now();
 
     // Wait for FCU connection
@@ -174,7 +190,7 @@ int main(int argc, char **argv)
     geometry_msgs::Pose hover_pose;
     hover_pose.position.x = params.takeoff_position_x;
     hover_pose.position.y = params.takeoff_position_y;
-    hover_pose.position.z = params.height;
+    hover_pose.position.z = params.flight_height;
     hover_pose.orientation.w = 1.0;
     hover_pose.orientation.x = 0.0;
     hover_pose.orientation.y = 0.0;
@@ -229,20 +245,76 @@ int main(int argc, char **argv)
         }
 
         // Calculate and publish position setpoint
-        geometry_msgs::PoseStamped setpoint_pose = calculateTrajectorySetpoint();
-        local_pos_pub.publish(setpoint_pose);
+        geometry_msgs::PoseStamped next_setpoint_pose = calculateTrajectorySetpoint();
+        local_pos_pub.publish(next_setpoint_pose);
         // Visualize trajectory
-        publishPoseAndSetpoint(current_pose, setpoint_pose, current_pose_marker_pub, setpoint_pose_marker_pub);
-        printPoseInfo(current_pose, setpoint_pose);
+        publishPoseAndSetpoint(current_pose, next_setpoint_pose, current_pose_marker_pub, setpoint_pose_marker_pub);
+        printPoseInfo(current_pose, next_setpoint_pose);
 
         ros::spinOnce();
         rate.sleep();
     }
 
+    geometry_msgs::PoseStamped landing_setpoint_pose = current_pose;
+    float landed_height = initial_pose.pose.position.z;
+    float landing_threshold = 0.1;
+    float landing_timeout = 4.0 * ((current_pose.pose.position.z - landed_height) / params.landing_speed);
+    last_request = ros::Time::now();
+    ROS_INFO("\033[33m[Landing] Starting descent from height: %.2f m to %.2f m with speed: %.2f m/s\033[0m", 
+            current_pose.pose.position.z, landed_height, params.landing_speed);
+
+    // Descend slowly (about 0.5 m/s = (0.01 * 50)) until near ground
+    while (ros::ok() && current_pose.pose.position.z > landed_height - landing_threshold) {
+        if ((ros::Time::now() - last_request).toSec() > landing_timeout) {
+            ROS_WARN("\033[31m[Landing] Timeout reached. Landing finished.\033[0m");
+            break;
+        }
+
+        geometry_msgs::Pose landing_pose;
+        landing_pose.position.x = 0.0;
+        landing_pose.position.y = 0.0;
+        landing_pose.position.z = - params.landing_speed / node_rate;
+        landing_pose.orientation.w = 1.0;
+        landing_pose.orientation.x = 0.0;
+        landing_pose.orientation.y = 0.0;
+        landing_pose.orientation.z = 0.0;
+
+        landing_setpoint_pose = transformPose2Setpoint(landing_pose, landing_setpoint_pose);
+
+        local_pos_pub.publish(landing_setpoint_pose);
+        publishPoseAndSetpoint(current_pose, landing_setpoint_pose, current_pose_marker_pub, setpoint_pose_marker_pub);
+        printPoseInfo(current_pose, landing_setpoint_pose);
+        
+        ros::spinOnce();
+        rate.sleep();
+    }
+    ROS_INFO("\033[32m[Landing] Reached target height. Landing complete.\033[0m");
+
     offb_set_mode.request.custom_mode = "AUTO.LAND";
     if (set_mode_client.call(offb_set_mode) && offb_set_mode.response.mode_sent) {
         ROS_INFO("AUTO.LAND enabled");
         last_request = ros::Time::now();
+    }
+
+    // Disarm
+    arm_cmd.request.value = false;
+    last_request = ros::Time::now();
+    
+    while (ros::ok() && current_state.armed) {
+        if (ros::Time::now() - last_request > ros::Duration(1.0)) {
+            if (arming_client.call(arm_cmd)) {
+                if (arm_cmd.response.success) {
+                    ROS_INFO("Vehicle disarmed");
+                    break;
+                } 
+                else {
+                    ROS_WARN("Disarming failed, retrying...");
+                }
+            }
+            last_request = ros::Time::now();
+        }
+        ros::spinOnce();
+        rate.sleep();
     }
 
     return 0;
@@ -251,6 +323,11 @@ int main(int argc, char **argv)
 void state_cb(const mavros_msgs::State::ConstPtr& msg) 
 {
     current_state = *msg;
+}
+
+void extended_state_cb(const mavros_msgs::ExtendedState::ConstPtr& msg)
+{
+    current_extended_state = *msg;
 }
 
 void pose_cb(const geometry_msgs::PoseStamped::ConstPtr& msg) 
@@ -291,6 +368,10 @@ void trajectory_cmd_cb(const std_msgs::String::ConstPtr& msg)
 void land_cmd_cb(const std_msgs::Bool::ConstPtr& msg) 
 {
     land_command_received = msg->data;
+    if (land_command_received) {
+        ROS_INFO("\033[31mLand command received\033[0m");
+        trajectory_type = TrajectoryType::LANDING;
+    }
 }
 
 geometry_msgs::PoseStamped calculateTrajectorySetpoint() 
@@ -303,7 +384,7 @@ geometry_msgs::PoseStamped calculateTrajectorySetpoint()
     float target_height;
     if (!takeoff_completed) 
         // Use preset altitude during takeoff
-        target_height = params.height;
+        target_height = params.flight_height;
     else 
         // Maintain the current altitude during the trajectory flight phase
         target_height = trajectory_start_pose.pose.position.z;
@@ -319,9 +400,9 @@ geometry_msgs::PoseStamped calculateTrajectorySetpoint()
     }
     else if (trajectory_type == TrajectoryType::CIRCLE) {
         // heading to +X&-Y axis
-        double omega = params.speed / params.radius;
-        relative_pose.position.x = params.radius * sin(omega * t);
-        relative_pose.position.y = params.radius * (cos(omega * t) - 1);
+        double omega = params.flight_speed / params.circle_radius;
+        relative_pose.position.x = params.circle_radius * sin(omega * t);
+        relative_pose.position.y = params.circle_radius * (cos(omega * t) - 1);
         relative_pose.position.z = 0; 
         
         double yaw = - omega * t;
@@ -332,7 +413,7 @@ geometry_msgs::PoseStamped calculateTrajectorySetpoint()
     }
     else if (trajectory_type == TrajectoryType::RECTANGLE) {
         double perimeter = 2 * (params.rect_width + params.rect_length);
-        double s = fmod(params.speed * t, perimeter);
+        double s = fmod(params.flight_speed * t, perimeter);
         
         // Position calculation
         if (s < params.rect_width) {
@@ -382,7 +463,7 @@ geometry_msgs::PoseStamped calculateTrajectorySetpoint()
         relative_pose.position.z = 0;
     }
     else if (trajectory_type == TrajectoryType::EIGHT) {
-        double omega = params.speed / params.radius;
+        double omega = params.flight_speed / params.circle_radius;
         relative_pose.position.x = params.eight_width * sin(omega * t);
         relative_pose.position.y = params.eight_length * sin(omega * t * 2);
         relative_pose.position.z = 0;
@@ -536,6 +617,7 @@ void printPoseInfo(const geometry_msgs::PoseStamped& current_pose,
 {
     std::string traj_type;
     switch(trajectory_type) {
+        case TrajectoryType::LANDING: traj_type = "LANDING"; break;
         case TrajectoryType::HOVER: traj_type = "HOVER"; break;
         case TrajectoryType::CIRCLE: traj_type = "CIRCLE"; break;
         case TrajectoryType::RECTANGLE: traj_type = "RECTANGLE"; break;
@@ -549,7 +631,9 @@ void printPoseInfo(const geometry_msgs::PoseStamped& current_pose,
         << "Time: " << std::fixed << std::setprecision(1) 
         << ros::Time::now().toSec() << " sec\n"
         << "Mode: " << "\033[34m" << (current_state.mode) << "\033[0m"
-        << " | Armed: " << (current_state.armed ? "\033[32mYES\033[0m" : "\033[31mNO\033[0m")  << "\n"
+        << " | Armed: " << (current_state.armed ? "\033[32mYES\033[0m" : "\033[31mNO\033[0m") 
+        << " | Landed: " << (current_extended_state.landed_state == mavros_msgs::ExtendedState::LANDED_STATE_ON_GROUND ? 
+                             "\033[32mYES\033[0m" : "\033[31mNO\033[0m") << "\n"
         << "Current Mission: " << "\033[33m" << traj_type << "\033[0m" << "\n"
         << "--------------------------------------------------\n"
         << "Current Position:\n"
