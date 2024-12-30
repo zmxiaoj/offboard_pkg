@@ -1,4 +1,3 @@
-
 #include <ros/ros.h>
 #include <geometry_msgs/PoseStamped.h>	//发布的消息体对应的头文件，该消息体的类型为geometry_msgs::PoseStamped 本地位置
 #include <geometry_msgs/PoseArray.h>
@@ -6,11 +5,13 @@
 #include <mavros_msgs/CommandBool.h>  //CommandBool服务的头文件，该服务的类型为mavros_msgs::CommandBool
 #include <mavros_msgs/SetMode.h>  //SetMode服务的头文件，该服务的类型为mavros_msgs::SetMode
 #include <mavros_msgs/State.h>  //订阅的消息体的头文件，该消息体的类型为mavros_msgs::State
+#include <mavros_msgs/ExtendedState.h>
 #include <std_msgs/Bool.h>
 #include <eigen3/Eigen/Eigen>
 
 // Global Parameters
 mavros_msgs::State current_state;
+mavros_msgs::ExtendedState current_extended_state;
 geometry_msgs::PoseStamped current_pose;
 geometry_msgs::PoseStamped initial_pose;
 bool land_command_received = false;
@@ -18,6 +19,7 @@ bool initial_pose_received = false;
 
 // Callback Function
 void state_cb(const mavros_msgs::State::ConstPtr& msg);
+void extended_state_cb(const mavros_msgs::ExtendedState::ConstPtr& msg);
 void land_cmd_cb(const std_msgs::Bool::ConstPtr& msg);
 void pose_cb(const geometry_msgs::PoseStamped::ConstPtr& msg);
 
@@ -129,7 +131,7 @@ int main(int argc, char **argv)
 
     while (ros::ok()) {
         if (land_command_received) {
-            ROS_INFO("Land command received, exiting offboard mode and landing...");
+            ROS_INFO("Land command received, performing controlled descent...");          
             break;
         }
 
@@ -141,10 +143,62 @@ int main(int argc, char **argv)
         rate.sleep();
     }
 
+    // Create landing setpoint at current X-Y position
+    geometry_msgs::PoseStamped landing_setpoint_pose = current_pose;
+    float landed_height = initial_pose.pose.position.z;
+    float landing_speed = 0.3;
+    float landing_threshold = 0.1;
+    float landing_timeout = 2.0 * ((current_pose.pose.position.z - landed_height) / landing_speed);
+    last_request = ros::Time::now();
+    ROS_INFO("\033[33m[Landing] Starting descent from height: %.2f m with speed: %.2f m/s\033[0m", 
+            current_pose.pose.position.z, landing_speed);
+
+    // Descend slowly (about 0.5 m/s = (0.025 * 20)) until near ground
+    while (ros::ok() && current_pose.pose.position.z > landed_height - landing_threshold) {
+        if ((ros::Time::now() - last_request).toSec() > landing_timeout) {
+            ROS_WARN("\033[31m[Landing] Timeout reached. Landing finished.\033[0m");
+            break;
+        }
+        landing_setpoint_pose.pose.position.x = landing_setpoint_pose.pose.position.x;
+        landing_setpoint_pose.pose.position.y = landing_setpoint_pose.pose.position.y;
+        landing_setpoint_pose.pose.position.z = landing_setpoint_pose.pose.position.z - landing_speed / 20.0;
+        landing_setpoint_pose.pose.orientation = landing_setpoint_pose.pose.orientation;
+        landing_setpoint_pose.header.stamp = ros::Time::now();
+        landing_setpoint_pose.header.frame_id = "world";
+
+        local_pos_pub.publish(landing_setpoint_pose);
+        publishPoseAndSetpoint(current_pose, landing_setpoint_pose, current_pose_marker_pub, setpoint_pose_marker_pub);
+        printPoseInfo(current_pose, landing_setpoint_pose);
+        
+        ros::spinOnce();
+        rate.sleep();
+    }
+    ROS_INFO("\033[32m[Landing] Reached target height. Landing complete.\033[0m");
+
     offb_set_mode.request.custom_mode = "AUTO.LAND";
     if (set_mode_client.call(offb_set_mode) && offb_set_mode.response.mode_sent) {
         ROS_INFO("AUTO.LAND enabled");
         last_request = ros::Time::now();
+    }
+
+    // Disarm
+    arm_cmd.request.value = false;
+    last_request = ros::Time::now();
+    
+    while (ros::ok() && current_state.armed) {
+        if (ros::Time::now() - last_request > ros::Duration(1.0)) {
+            if (arming_client.call(arm_cmd)) {
+                if (arm_cmd.response.success) {
+                    ROS_INFO("Vehicle disarmed");
+                    break;
+                } else {
+                    ROS_WARN("Disarming failed, retrying...");
+                }
+            }
+            last_request = ros::Time::now();
+        }
+        ros::spinOnce();
+        rate.sleep();
     }
 
     return 0;
@@ -153,6 +207,11 @@ int main(int argc, char **argv)
 void state_cb(const mavros_msgs::State::ConstPtr& msg)
 {
     current_state = *msg;
+}
+
+void extended_state_cb(const mavros_msgs::ExtendedState::ConstPtr& msg)
+{
+    current_extended_state = *msg;
 }
 
 void land_cmd_cb(const std_msgs::Bool::ConstPtr& msg) 
@@ -177,8 +236,8 @@ void pose_cb(const geometry_msgs::PoseStamped::ConstPtr& msg)
  * @param initial_pose The initial pose used as the reference for the transformation.
  * @return geometry_msgs::PoseStamped The transformed setpoint pose.
  */
-geometry_msgs::PoseStamped transformPose2Setpoint(  const geometry_msgs::Pose& relative_pose,
-                                                    const geometry_msgs::PoseStamped& initial_pose) 
+geometry_msgs::PoseStamped transformPose2Setpoint(const geometry_msgs::Pose& relative_pose,
+                                                  const geometry_msgs::PoseStamped& initial_pose) 
 {
     geometry_msgs::PoseStamped setpoint;
     
