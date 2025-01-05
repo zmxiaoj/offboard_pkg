@@ -7,6 +7,18 @@
  * 2. Trajectory Following: After takeoff, UAV follows the selected trajectory while maintaining height
  * 3. Landing: UAV lands when receiving land command
  * 
+ * Trajectory Modes:
+ * 1. Basic Trajectories (Without heading control):
+ *    - hover: Maintain position
+ *    - circle: Circle trajectory
+ *    - rectangle: Rectangle trajectory
+ *    - eight: Figure-8 trajectory
+ * 
+ * 2. Heading-controlled Trajectories:
+ *    - circle_head: Circle with heading aligned to motion direction
+ *    - rectangle_head: Rectangle with heading aligned to motion direction
+ *    - eight_head: Figure-8 with heading aligned to motion direction
+ * 
  * Height Control Strategy:
  * - During takeoff: Uses height parameter from configuration
  * - During trajectory: Maintains the height at trajectory switching point
@@ -19,12 +31,15 @@
  * - /trajectory/circle_radius: Radius for circular and eight-shaped trajectories [0.0-3.0m]
  * - /trajectory/rect_width: Width of the rectangular trajectory [max: 5.0m]
  * - /trajectory/rect_length: Height of the rectangular trajectory [max: 5.0m]
+ * - /trajectory/eight_width: Width of figure-8 trajectory [max: 4.0m]
+ * - /trajectory/eight_length: Length of figure-8 trajectory [max: 4.0m]
  * - /trajectory/flight_speed: Flight speed [0.1-1.0m/s]
+ * - /trajectory/landing_speed: Landing descent speed [m/s]
  * 
  * Subscribers:
  * - /mavros/state: Current state of the UAV
  * - /mavros/local_position/pose: Current pose from motion capture
- * - /trajectory_cmd: Command to switch trajectory type (hover/circle/rectangle/eight)
+ * - /trajectory_cmd: Command to switch trajectory type
  * - /land_cmd: Command to trigger landing
  * 
  * Publishers:
