@@ -9,6 +9,7 @@
 #include <mavros_msgs/SetMode.h>
 #include <mavros_msgs/State.h>	
 
+
 mavros_msgs::State current_state;
 
 void state_cb(const mavros_msgs::State::ConstPtr& msg);

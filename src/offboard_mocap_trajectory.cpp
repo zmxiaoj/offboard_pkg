@@ -83,6 +83,7 @@ enum class TrajectoryType {
     RECTANGLE = 4,
     EIGHT_HEAD = 5,
     EIGHT = 6,
+    CUSTOM = 7,
 };
 TrajectoryType trajectory_type = TrajectoryType::HOVER;
 
@@ -203,7 +204,7 @@ int main(int argc, char **argv)
         ros::spinOnce();
         rate.sleep();
     }
-
+    
     // Takeoff 
     geometry_msgs::Pose hover_pose;
     hover_pose.position.x = params.takeoff_position_x;
@@ -232,7 +233,6 @@ int main(int argc, char **argv)
     offb_set_mode.request.custom_mode = "OFFBOARD";
     mavros_msgs::CommandBool arm_cmd;
     arm_cmd.request.value = true;
-
     ros::Time last_request = ros::Time::now();
     while (ros::ok()) {
         if (current_state.mode != "OFFBOARD") {
@@ -256,6 +256,7 @@ int main(int argc, char **argv)
     }
 
     // Main loop
+    
     while (ros::ok()) {
         if (land_command_received) {
             ROS_INFO("Land command received, exiting offboard mode and landing...");
@@ -263,14 +264,29 @@ int main(int argc, char **argv)
         }
 
         // Calculate and publish position setpoint
-        geometry_msgs::PoseStamped next_setpoint_pose = calculateTrajectorySetpoint();
-        local_pos_pub.publish(next_setpoint_pose);
-        // Visualize trajectory
-        publishPoseAndSetpoint(current_pose, next_setpoint_pose, current_pose_marker_pub, setpoint_pose_marker_pub);
-        printPoseInfo(current_pose, next_setpoint_pose);
-
+        if(trajectory_type == TrajectoryType::CUSTOM){
+            // 这里为一个阻塞式的循环，启动自定义逻辑，直至运行完毕，运行完毕后，直接设定 trajectory_type 为 land
+            ros::NodeHandle pnh;
+            ros::param::set("/lih_custom_traj","begin");
+            std::string custom_traj_state;
+            while(ros::ok()){
+                ros::param::get("/lih_custom_traj",custom_traj_state);
+                if(custom_traj_state == "finish"){
+                    break;
+                }
+                ROS_INFO_THROTTLE(1.0, "Waiting for custom traj to finish");
+                rate.sleep();
+            }
+            ROS_INFO("Finish custom traj and to land");
+        }else{
+            geometry_msgs::PoseStamped next_setpoint_pose = calculateTrajectorySetpoint();
+            local_pos_pub.publish(next_setpoint_pose);
+            // Visualize trajectory
+            publishPoseAndSetpoint(current_pose, next_setpoint_pose, current_pose_marker_pub, setpoint_pose_marker_pub);
+            printPoseInfo(current_pose, next_setpoint_pose);
+            rate.sleep();
+        }
         ros::spinOnce();
-        rate.sleep();
     }
 
     geometry_msgs::PoseStamped landing_setpoint_pose = current_pose;
@@ -383,6 +399,9 @@ void trajectory_cmd_cb(const std_msgs::String::ConstPtr& msg)
     }
     else if (cmd == "eight_head") {
         trajectory_type = TrajectoryType::EIGHT_HEAD;
+    }
+    else if (cmd == "custom"){
+        trajectory_type = TrajectoryType::CUSTOM;
     }
 
     if (previous_type != trajectory_type) {
@@ -555,8 +574,7 @@ geometry_msgs::PoseStamped calculateTrajectorySetpoint()
         relative_pose.orientation.x = 0;
         relative_pose.orientation.y = 0;
         relative_pose.orientation.z = 0;
-    }
-        
+    } 
     setpoint_pose = transformPose2Setpoint(relative_pose, trajectory_start_pose);
     
     // Set target altitude according to flight phase

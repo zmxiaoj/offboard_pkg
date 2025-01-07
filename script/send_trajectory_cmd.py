@@ -13,7 +13,8 @@ TRAJECTORY_COMMANDS = {
     'e': 'eight',
     'eh': 'eight_head',
     'l': 'land',
-    'q': 'quit'
+    'q': 'quit',
+    'cu': 'custom'
 }
 
 def signal_handler(signum, frame):
@@ -33,6 +34,7 @@ Available commands:
     eh or eight_head    - Figure-8 trajectory with heading control
     l  or land          - Land the drone
     q  or quit          - Exit the program
+    cu or custom        - Custom mode
     help                - Show this help message
     """
     print(help_msg)

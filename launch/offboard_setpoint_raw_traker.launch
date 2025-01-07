@@ -1,0 +1,14 @@
+<launch>
+    <!-- 定义一个参数，允许从命令行接收rosbag路径 -->
+    <arg name="rosbag_path" default="/home/amov/0713.bag"/>
+    <arg name="rosbag_topic" default="null"/>
+    <arg name="topic_start_seq" default="324"/>
+    <arg name="topic_end_seq" default="1049"/>
+    <!-- 启动offboard_waypoint_tracker节点 -->
+    <node pkg="offboard_pkg" type="offboard_waypoint_tracker" name="offboard_waypoint_tracker_node" output="screen" >
+        <!-- 使用传入的参数设置rosbag路径参数 -->
+        <param name="rosbag_path" value="$(arg rosbag_path)" />
+        <param name="rosbag_topic" value="$(arg rosbag_topic)" />
+        <param name="topic_start_time" value="$(arg topic_start_time)" />
+    </node>
+</launch>

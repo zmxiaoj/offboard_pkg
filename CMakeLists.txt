@@ -177,6 +177,9 @@ target_link_libraries(offboard_waypoint_tracker ${catkin_LIBRARIES})
 add_executable(offboard_trajectory src/offboard_mocap_trajectory.cpp)
 target_link_libraries(offboard_trajectory ${catkin_LIBRARIES})
 
+add_executable(offboard_setpoint_raw_tracker src/offboard_setpoint_raw_tracker.cpp)
+target_link_libraries(offboard_setpoint_raw_tracker ${catkin_LIBRARIES})
+
 #############
 ## Install ##
 #############

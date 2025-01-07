@@ -23,14 +23,14 @@ roslaunch offboard_pkg offboard_mocap_flight_nx.launch
 ## takeoff_position_* is the position for the takeoff setpoint
 roslaunch offboard_pkg offboard_hover.launch takeoff_position_x:=2.0 takeoff_position_y:=2.0 takeoff_position_z:=2.0
 ## land command 
-rostopic pub -n 1 /land_cmd std_msgs/Bool "data: true"
+rostopic pub -r 1 /land_cmd std_msgs/Bool "data: true"
 
 
 # offboard_traverse
 ## 
 roslaunch offboard_pkg offboard_traverse.launch hover_time:=10.0
 ## land command 
-rostopic pub -n 1 /land_cmd std_msgs/Bool "data: true"
+rostopic pub -r 1 /land_cmd std_msgs/Bool "data: true"
 
 # offboard_trajectory
 ## Terminal_0
