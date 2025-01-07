@@ -1,0 +1,29 @@
+<launch>
+    <!-- VINS-Fusion configuration -->
+    <arg name="config_path" default = "$(find vins)/../config/realsense_d455/realsense_stereo_imu_config.yaml" />
+    <arg name="vins_path" default = "$(find vins)/../results" />
+    <!-- Enable/disable options -->
+    <arg name="enable_loop_closure" default="false"/>
+    <arg name="enable_rviz" default="true"/>
+    
+    <!-- VINS-Fusion estimator node -->
+    <node name="vins_estimator" pkg="vins" type="vins_node" output="screen" args="$(arg config_path)">
+        <param name="config_file" type="string" value="$(arg config_path)" />
+        <param name="vins_folder" type="string" value="$(arg vins_path)" />
+    </node>
+
+    <!-- Loop fusion node - conditionally launched -->
+    <group if="$(arg enable_loop_closure)">
+        <node name="loop_fusion" pkg="loop_fusion" type="loop_fusion_node" output="screen" args="$(arg config_path)">
+            <param name="config_file" type="string" value="$(arg config_path)" />
+            <param name="vins_folder" type="string" value="$(arg vins_path)" />
+        </node>
+    </group>
+
+    <!-- RVIZ visualization - conditionally launched -->
+    <group if="$(arg enable_rviz)">
+        <node name="rvizvisualisation" pkg="rviz" type="rviz" output="log" 
+              args="-d $(find vins)/../config/vins_rviz_config.rviz" />
+    </group>
+
+</launch>
