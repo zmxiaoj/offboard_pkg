@@ -87,15 +87,6 @@
         </include>
     </group>
 
-    <!-- Enable/disable options -->
-    <arg name="enable_realsense" default="false"/>
-
-    <!-- 启动realsense -->
-    <group if="$(arg enable_realsense)">
-        <include file="$(find realsense2_camera)/launch/rs_camera_flight.launch">
-        </include>
-    </group>
-
     <!-- rosbag 参数设置 -->
     <arg name="record_path" default="$(find offboard_pkg)/bag"/>
     <arg name="record_prefix" default="mocap_flight"/>
