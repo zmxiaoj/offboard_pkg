@@ -24,16 +24,16 @@ def signal_handler(signum, frame):
 def print_help():
     help_msg = """
 Available commands:
-    h  or hover           - Hover in place
+    h  or hover          - Hover in place
     c  or circle         - Circle trajectory without heading control
     ch or circle_head    - Circle trajectory with heading control
-    r  or rectangle     - Rectangle trajectory without heading control
+    r  or rectangle      - Rectangle trajectory without heading control
     rh or rectangle_head - Rectangle trajectory with heading control
-    e  or eight         - Figure-8 trajectory without heading control
-    eh or eight_head    - Figure-8 trajectory with heading control
-    l  or land          - Land the drone
-    q  or quit          - Exit the program
-    help                - Show this help message
+    e  or eight          - Figure-8 trajectory without heading control
+    eh or eight_head     - Figure-8 trajectory with heading control
+    l  or land           - Land the drone
+    q  or quit           - Exit the program
+    help                 - Show this help message
     """
     print(help_msg)
 

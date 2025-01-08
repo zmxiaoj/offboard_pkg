@@ -10,9 +10,9 @@
  * Trajectory Modes:
  * 1. Basic Trajectories (Without heading control):
  *    - hover: Maintain position
- *    - circle: Circle trajectory
- *    - rectangle: Rectangle trajectory
- *    - eight: Figure-8 trajectory
+ *    - circle: Circle trajectory, starts from current position, clockwise
+ *    - rectangle: Rectangle trajectory, starts from current position, moves forward、right、backward、left 
+ *    - eight: Figure-8 trajectory, starts from current position, intersects at starting point
  * 
  * 2. Heading-controlled Trajectories:
  *    - circle_head: Circle with heading aligned to motion direction
@@ -69,7 +69,8 @@ mavros_msgs::State current_state;
 mavros_msgs::ExtendedState current_extended_state;
 geometry_msgs::PoseStamped current_pose;
 geometry_msgs::PoseStamped initial_pose;
-geometry_msgs::PoseStamped hover_setpoint_pose;
+geometry_msgs::PoseStamped last_setpoint_pose;
+
 bool land_command_received = false;
 bool initial_pose_received = false;
 bool takeoff_completed = false;
@@ -214,6 +215,7 @@ int main(int argc, char **argv)
     hover_pose.orientation.y = 0.0;
     hover_pose.orientation.z = 0.0;
 
+    geometry_msgs::PoseStamped hover_setpoint_pose;
     hover_setpoint_pose = transformPose2Setpoint(hover_pose, initial_pose);
     publishPoseAndSetpoint(current_pose, hover_setpoint_pose, current_pose_marker_pub, setpoint_pose_marker_pub);
     printPoseInfo(current_pose, hover_setpoint_pose);
@@ -274,15 +276,17 @@ int main(int argc, char **argv)
     }
 
     geometry_msgs::PoseStamped landing_setpoint_pose = current_pose;
-    float landed_height = initial_pose.pose.position.z;
     float landing_threshold = 0.1;
-    float landing_timeout = 4.0 * ((current_pose.pose.position.z - landed_height) / params.landing_speed);
+    float landed_height = initial_pose.pose.position.z - landing_threshold;
+    float landing_timeout = 3.0 * ((current_pose.pose.position.z - landed_height) / params.landing_speed);
     last_request = ros::Time::now();
-    ROS_INFO("\033[33m[Landing] Starting descent from height: %.2f m to %.2f m with speed: %.2f m/s\033[0m", 
-            current_pose.pose.position.z, landed_height, params.landing_speed);
+    ROS_INFO("\033[33m[Landing] Starting descent from height: %.2f m to %.2f m\n"
+             "         Speed: %.2f m/s | Timeout: %.1f sec\033[0m", 
+             current_pose.pose.position.z, landed_height, 
+             params.landing_speed, landing_timeout);
 
     // Descend slowly (about 0.5 m/s = (0.01 * 50)) until near ground
-    while (ros::ok() && current_pose.pose.position.z > landed_height - landing_threshold) {
+    while (ros::ok() && current_pose.pose.position.z > landed_height) {
         if ((ros::Time::now() - last_request).toSec() > landing_timeout) {
             ROS_WARN("\033[31m[Landing] Timeout reached. Landing finished.\033[0m");
             break;
@@ -386,7 +390,12 @@ void trajectory_cmd_cb(const std_msgs::String::ConstPtr& msg)
     }
 
     if (previous_type != trajectory_type) {
-        trajectory_start_pose = current_pose;  // Use current pose as new reference
+        if (trajectory_type == TrajectoryType::HOVER) {
+            trajectory_start_pose = last_setpoint_pose;  // Use last setpoint for hover
+        } 
+        else {
+            trajectory_start_pose = current_pose;  // Use current pose for other modes
+        }
         trajectory_switch_time = ros::Time::now();
         ROS_INFO("\033[33mSwitching to trajectory: %s\033[0m", cmd.c_str());
     }
@@ -452,33 +461,36 @@ geometry_msgs::PoseStamped calculateTrajectorySetpoint()
         double perimeter = 2 * (params.rect_width + params.rect_length);
         double s = fmod(params.flight_speed * t, perimeter);
         
-        // Position calculation
-        if (s < params.rect_width) {
+        // Position calculation - Forward and right based pattern
+        if (s < params.rect_length) {
+            // First leg: Move forward
             relative_pose.position.x = s;
             relative_pose.position.y = 0;
-            relative_pose.position.z = 0; 
-            // Moving along +X axisZ
+            relative_pose.position.z = 0;
+            // Moving along +X axis
             double yaw = 0;
             relative_pose.orientation.w = cos(yaw/2);
             relative_pose.orientation.x = 0;
             relative_pose.orientation.y = 0;
             relative_pose.orientation.z = sin(yaw/2);
         }
-        else if (s < params.rect_width + params.rect_length) {
-            relative_pose.position.x = params.rect_width;
-            relative_pose.position.y = s - params.rect_width;
-            relative_pose.position.z = 0; 
-            // Moving along +Y axis
-            double yaw = M_PI/2;
+        else if (s < params.rect_length + params.rect_width) {
+            // Second leg: Move right
+            relative_pose.position.x = params.rect_length;
+            relative_pose.position.y = -(s - params.rect_length);
+            relative_pose.position.z = 0;
+            // Moving along -Y axis
+            double yaw = -M_PI/2;
             relative_pose.orientation.w = cos(yaw/2);
             relative_pose.orientation.x = 0;
             relative_pose.orientation.y = 0;
             relative_pose.orientation.z = sin(yaw/2);
         }
-        else if (s < 2 * params.rect_width + params.rect_length) {
-            relative_pose.position.x = params.rect_width - (s - params.rect_width - params.rect_length);
-            relative_pose.position.y = params.rect_length;
-            relative_pose.position.z = 0; 
+        else if (s < 2 * params.rect_length + params.rect_width) {
+            // Third leg: Move backward
+            relative_pose.position.x = params.rect_length - (s - params.rect_length - params.rect_width);
+            relative_pose.position.y = -params.rect_width;
+            relative_pose.position.z = 0;
             // Moving along -X axis
             double yaw = M_PI;
             relative_pose.orientation.w = cos(yaw/2);
@@ -487,47 +499,48 @@ geometry_msgs::PoseStamped calculateTrajectorySetpoint()
             relative_pose.orientation.z = sin(yaw/2);
         }
         else {
+            // Fourth leg: Move left
             relative_pose.position.x = 0;
-            relative_pose.position.y = params.rect_length - (s - 2 * params.rect_width - params.rect_length);
-            relative_pose.position.z = 0; 
-            // Moving along -Y axis
-            double yaw = -M_PI/2;
+            relative_pose.position.y = -(params.rect_width - (s - 2 * params.rect_length - params.rect_width));
+            relative_pose.position.z = 0;
+            // Moving along +Y axis
+            double yaw = M_PI/2;
             relative_pose.orientation.w = cos(yaw/2);
             relative_pose.orientation.x = 0;
             relative_pose.orientation.y = 0;
             relative_pose.orientation.z = sin(yaw/2);
         }
-        relative_pose.position.z = 0;
     }
     else if (trajectory_type == TrajectoryType::RECTANGLE) {
         double perimeter = 2 * (params.rect_width + params.rect_length);
         double s = fmod(params.flight_speed * t, perimeter);
         
-        // Position calculation
-        if (s < params.rect_width) {
+        // Position calculation - Forward and right based pattern
+        if (s < params.rect_length) {
+            // First leg: Move forward
             relative_pose.position.x = s;
             relative_pose.position.y = 0;
-            relative_pose.position.z = 0; 
+            relative_pose.position.z = 0;
         }
-        else if (s < params.rect_width + params.rect_length) {
-            relative_pose.position.x = params.rect_width;
-            relative_pose.position.y = s - params.rect_width;
-            relative_pose.position.z = 0; 
+        else if (s < params.rect_length + params.rect_width) {
+            // Second leg: Move right
+            relative_pose.position.x = params.rect_length;
+            relative_pose.position.y = -(s - params.rect_length);
+            relative_pose.position.z = 0;
         }
-        else if (s < 2 * params.rect_width + params.rect_length) {
-            relative_pose.position.x = params.rect_width - (s - params.rect_width - params.rect_length);
-            relative_pose.position.y = params.rect_length;
-            relative_pose.position.z = 0; 
+        else if (s < 2 * params.rect_length + params.rect_width) {
+            // Third leg: Move backward
+            relative_pose.position.x = params.rect_length - (s - params.rect_length - params.rect_width);
+            relative_pose.position.y = -params.rect_width;
+            relative_pose.position.z = 0;
         }
         else {
+            // Fourth leg: Move left
             relative_pose.position.x = 0;
-            relative_pose.position.y = params.rect_length - (s - 2 * params.rect_width - params.rect_length);
-            relative_pose.position.z = 0; 
+            relative_pose.position.y = -(params.rect_width - (s - 2 * params.rect_length - params.rect_width));
+            relative_pose.position.z = 0;
         }
-        relative_pose.orientation.w = 1;
-        relative_pose.orientation.x = 0;
-        relative_pose.orientation.y = 0;
-        relative_pose.orientation.z = 0;
+        relative_pose.orientation = trajectory_start_pose.pose.orientation;
     }
     else if (trajectory_type == TrajectoryType::EIGHT_HEAD) {
         double omega = params.flight_speed / params.circle_radius;
@@ -559,6 +572,9 @@ geometry_msgs::PoseStamped calculateTrajectorySetpoint()
         
     setpoint_pose = transformPose2Setpoint(relative_pose, trajectory_start_pose);
     
+    // Record the last setpoint 
+    last_setpoint_pose = setpoint_pose;
+
     // Set target altitude according to flight phase
     if (!takeoff_completed) {
         setpoint_pose.pose.position.z = target_height;
@@ -702,19 +718,19 @@ void printPoseInfo(const geometry_msgs::PoseStamped& current_pose,
             traj_type = "\033[32mHOVER\033[0m"; 
             break;
         case TrajectoryType::CIRCLE_HEAD: 
-            traj_type = "\033[33mPREPARE CIRCLE\033[0m"; 
+            traj_type = "\033[33mCIRCLE(YAW)\033[0m"; 
             break;
         case TrajectoryType::CIRCLE: 
             traj_type = "\033[36mCIRCLE\033[0m"; 
             break;
         case TrajectoryType::RECTANGLE_HEAD: 
-            traj_type = "\033[33mPREPARE RECTANGLE\033[0m"; 
+            traj_type = "\033[33mRECTANGLE(YAW)\033[0m"; 
             break;
         case TrajectoryType::RECTANGLE: 
             traj_type = "\033[36mRECTANGLE\033[0m"; 
             break;
         case TrajectoryType::EIGHT_HEAD: 
-            traj_type = "\033[33mPREPARE EIGHT\033[0m"; 
+            traj_type = "\033[33mEIGHT(YAW)\033[0m"; 
             break;
         case TrajectoryType::EIGHT: 
             traj_type = "\033[36mEIGHT\033[0m"; 
