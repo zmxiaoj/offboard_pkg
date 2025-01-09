@@ -84,7 +84,7 @@
     
     <!-- 启动 rosbag record 节点 -->
     <node pkg="rosbag" type="record" name="rosbag_record_mocap" output="screen"
-        args="--output-prefix $(arg record_path)/$(arg record_prefix)"
+        args="--o $(arg record_path)/$(arg record_prefix).bag -a"
     />
 
 </launch>
