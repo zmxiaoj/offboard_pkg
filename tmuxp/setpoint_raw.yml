@@ -1,0 +1,12 @@
+---
+name: setpoint_raw
+root: ~/catkin_ws
+
+windows:
+  - setpoint_raw_window:
+      layoout: tiled
+      panes:
+        - echo "roslaunch offboard_pkg offboard_mocap_flight_nx.launch rigid_body_name:=TODO"
+        - echo "roslaunch offboard_pkg offboard_trajectory.launch"
+        - echo "roslaunch offboard_pkg offboard_setpoint_raw_traker.launch"
+        - echo "python3 src/offboard_pkg/script/send_trajectory_cmd.py"
