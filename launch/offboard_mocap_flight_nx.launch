@@ -1,9 +1,9 @@
 <launch>
 
     <!-- mavros 参数设置 -->
-	<arg name="fcu_url" default="/dev/ttyTHS0:921600" />
+	<arg name="fcu_url" default="/dev/ttyUSB0:921600" />
     <!-- <arg name="gcs_url" default="udp://:14550@192.168.xx.xx"(host ip) /> -->
-	<arg name="gcs_url" default="udp://:14550@192.168.31.37" />
+	<arg name="gcs_url" default="udp://:14550@192.168.1.156:10086" />
 	<arg name="tgt_system" default="1" />
 	<arg name="tgt_component" default="1" />
 	<arg name="log_output" default="screen" />
