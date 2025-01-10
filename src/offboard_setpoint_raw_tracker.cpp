@@ -79,14 +79,15 @@ int main(int argc, char **argv)
     // follow waypoints
     ROS_INFO("Start follow waypoints");
     ros::Time prev_msg_time,curr_msg_time;
-    for(const mavros_msgs::PositionTarget& msg : setpoint_raw_vector){
+    for(mavros_msgs::PositionTarget& msg : setpoint_raw_vector){
         curr_msg_time = msg.header.stamp;
         // 按照消息间隔进行发送
         if(!prev_msg_time.isZero()){
             ros::Duration delay = curr_msg_time - prev_msg_time;
             delay.sleep();
         }
-        // msg.header.frame_id = ""
+        // ignore z speed
+        msg.type_mask += 32; 
         local_setpoint_pub.publish(msg);
         prev_msg_time = curr_msg_time;
         ROS_INFO_THROTTLE(2.0, "Publishing mavros/setpoint_raw/local");
