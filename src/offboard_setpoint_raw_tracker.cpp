@@ -10,31 +10,41 @@
 #include <mavros_msgs/SetMode.h>
 #include <mavros_msgs/State.h>	
 #include <std_msgs/Bool.h>
-
+#include <geometry_msgs/Point.h>
 
 mavros_msgs::State current_state;
-
+geometry_msgs::PoseStamped curr_pose;
+float curr_pose_z = 1.0;
 void state_cb(const mavros_msgs::State::ConstPtr& msg);
-
+void pose_cb(const geometry_msgs::PoseStamped::ConstPtr& msg);
+float comput_vz(float target_height);
 int main(int argc, char **argv)
 {
     ros::init(argc, argv, "offboard_setpoint_raw_tracker_node");
     ros::NodeHandle nh("~");
     ros::Subscriber state_sub = nh.subscribe<mavros_msgs::State>
             ("/mavros/state", 10, state_cb);
+    ros::Subscriber pos_sub = nh.subscribe<geometry_msgs::PoseStamped>
+            ("/mavros/local_position/pose", 10, pose_cb);
     ros::Publisher local_setpoint_pub = nh.advertise<mavros_msgs::PositionTarget>
             ("/mavros/setpoint_raw/local",10);
     ros::Publisher land_cmd_pub = nh.advertise<std_msgs::Bool>("/land_cmd",10);
     std::string rosbag_path;
     std::string rosbag_topic;
     int topic_start_seq,topic_end_seq;
+    float flight_height;
+    bool control_height;
     nh.param<std::string>("rosbag_path", rosbag_path, "null");
     nh.param<std::string>("rosbag_topic",rosbag_topic,"null");
     nh.param<int>("topic_start_seq",topic_start_seq,0);
     nh.param<int>("topic_end_seq",topic_end_seq,0);
+    nh.param<float>("flight_height",flight_height,1.0);
+    nh.param<bool>("control_height",control_height,false);
     ROS_INFO("rosbag path: %s", rosbag_path.c_str());
     ROS_INFO("rosbag topic: %s", rosbag_topic.c_str());
     ROS_INFO("topic start seq : %d", topic_start_seq);
+    ROS_INFO("flight_height: %.2f", flight_height);
+    ROS_INFO("control_height: %d", control_height);
 
     std::vector<mavros_msgs::PositionTarget> setpoint_raw_vector;
     size_t current_waypoint = 0;
@@ -59,9 +69,11 @@ int main(int argc, char **argv)
                 continue;
             }
             if(msg->header.seq > topic_end_seq){
+                ROS_INFO("TYPE MASK: %d", msg->type_mask);
                 break;
             }
             setpoint_raw_vector.push_back(*msg);
+
         }
     }
     bag.close();
@@ -78,6 +90,8 @@ int main(int argc, char **argv)
 
     // follow waypoints
     ROS_INFO("Start follow waypoints");
+
+    // control height
     ros::Time prev_msg_time,curr_msg_time;
     for(mavros_msgs::PositionTarget& msg : setpoint_raw_vector){
         curr_msg_time = msg.header.stamp;
@@ -86,8 +100,11 @@ int main(int argc, char **argv)
             ros::Duration delay = curr_msg_time - prev_msg_time;
             delay.sleep();
         }
-        // ignore z speed
-        msg.type_mask += 32; 
+        msg.type_mask += 4; // 3015
+        
+        if(control_height){
+            msg.velocity.z = comput_vz(flight_height);
+        }
         local_setpoint_pub.publish(msg);
         prev_msg_time = curr_msg_time;
         ROS_INFO_THROTTLE(2.0, "Publishing mavros/setpoint_raw/local");
@@ -108,4 +125,14 @@ int main(int argc, char **argv)
 void state_cb(const mavros_msgs::State::ConstPtr& msg)
 {
     current_state = *msg;
+}
+void pose_cb(const geometry_msgs::PoseStamped::ConstPtr& msg){
+    curr_pose = *msg;
+    curr_pose_z = curr_pose.pose.position.z;
+}
+
+float comput_vz(float target_height){
+    float error = target_height - curr_pose_z;
+    float vz = error * 0.4;
+    return vz;
 }

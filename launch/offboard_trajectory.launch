@@ -5,7 +5,7 @@
     <!-- Flight parameters -->
     <arg name="flight_speed" default="0.5"/>
     <arg name="landing_speed" default="0.5"/>
-    <arg name="flight_height" default="1.0"/>
+    <arg name="flight_height" default="1.5"/>
     <arg name="takeoff_position_x" default="0.0"/>
     <arg name="takeoff_position_y" default="0.0"/>
     

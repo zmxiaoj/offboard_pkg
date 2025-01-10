@@ -100,12 +100,9 @@
                 /mavros/imu/data
                 /mavros/vision_pose/pose 
                 /mavros/local_position/pose
+                /mavros/setpoint_raw/local
                 /mavros/setpoint_position/local
-                /camera/infra1/image_rect_raw
-                /camera/infra2/image_rect_raw
-                /camera/depth/image_rect_raw
                 /camera/color/image_raw
-                /camera/imu
                 /visualization/current_pose
                 /visualization/setpoint_pose
                 /vrpn_client_node/$(arg rigid_body_name)/pose
