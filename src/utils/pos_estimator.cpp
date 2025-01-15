@@ -57,9 +57,12 @@ std::vector<geometry_msgs::PoseStamped> history_trajectory_queue;
 // mocap position&pose  
 Eigen::Vector3f mocap_position = Eigen::Vector3f::Zero();
 Eigen::Quaternionf mocap_pose_quaternion = Eigen::Quaternionf::Identity();
-// slam position&pose
-Eigen::Vector3f slam_position = Eigen::Vector3f::Zero();
-Eigen::Quaternionf slam_pose_quaternion = Eigen::Quaternionf::Identity();
+// lidar slam position&pose
+Eigen::Vector3f lidar_slam_position = Eigen::Vector3f::Zero();
+Eigen::Quaternionf lidar_slam_pose_quaternion = Eigen::Quaternionf::Identity();
+// visual slam position&pose
+Eigen::Vector3f visual_slam_position = Eigen::Vector3f::Zero();
+Eigen::Quaternionf visual_slam_pose_quaternion = Eigen::Quaternionf::Identity();
 // gazebo position&pose
 Eigen::Vector3f gazebo_position = Eigen::Vector3f::Zero(); 
 Eigen::Quaternionf gazebo_pose_quaternion = Eigen::Quaternionf::Identity();
@@ -83,7 +86,7 @@ inline double get_time_diff(const ros::Time &begin_time);
 
 // position information
 void mocap_cb(const geometry_msgs::PoseStamped::ConstPtr &msg);
-void slam_cb(const geometry_msgs::PoseStamped::ConstPtr &msg);
+void lidar_slam_cb(const nav_msgs::Odometry::ConstPtr &msg);
 void gazebo_cb(const nav_msgs::Odometry::ConstPtr &msg);
 void pub_state_cb(const ros::TimerEvent &e);
 // state information
@@ -114,8 +117,8 @@ int main(int argc, char** argv)
     ros::Subscriber mocap_sub = nh.subscribe<geometry_msgs::PoseStamped> 
                                 ("/vrpn_client_node/" + rigid_body_name + "/pose", 100, mocap_cb);
 
-    ros::Subscriber slam_sub = nh.subscribe<geometry_msgs::PoseStamped>
-                                ("/slam/pose", 100, slam_cb);
+    ros::Subscriber lidar_slam_sub = nh.subscribe<nav_msgs::Odometry>
+                                ("/Odometry", 100, lidar_slam_cb);
 
     ros::Subscriber gazebo_sub = nh.subscribe<nav_msgs::Odometry>
                                 ("/gazebo/ground_truth/uav", 100, gazebo_cb);
@@ -180,19 +183,40 @@ void send_to_fcu()
         }
         
     }
-    // 1-slam
+    // 1-lidar slam
     else if (input_source == 1) {
-        vision_pose.pose.position.x = slam_position[0];
-        vision_pose.pose.position.y = slam_position[1];
-        vision_pose.pose.position.z = slam_position[2];
+        vision_pose.pose.position.x = lidar_slam_position[0];
+        vision_pose.pose.position.y = lidar_slam_position[1];
+        vision_pose.pose.position.z = lidar_slam_position[2];
 
-        vision_pose.pose.orientation.x = slam_pose_quaternion.x();
-        vision_pose.pose.orientation.y = slam_pose_quaternion.y();
-        vision_pose.pose.orientation.z = slam_pose_quaternion.z();
-        vision_pose.pose.orientation.w = slam_pose_quaternion.w();
+        vision_pose.pose.orientation.x = lidar_slam_pose_quaternion.x();
+        vision_pose.pose.orientation.y = lidar_slam_pose_quaternion.y();
+        vision_pose.pose.orientation.z = lidar_slam_pose_quaternion.z();
+        vision_pose.pose.orientation.w = lidar_slam_pose_quaternion.w();
+
+        if (get_time_diff(last_timestamp) > 2.0 * TIMEOUT_MAX) {
+            _odom_valid = false;
+            ROS_ERROR("Lidar Slam Timeout");
+        }
     }
-    // 2-gazebo
+    // 2-visual slam
     else if (input_source == 2) {
+        vision_pose.pose.position.x = visual_slam_position[0];
+        vision_pose.pose.position.y = visual_slam_position[1];
+        vision_pose.pose.position.z = visual_slam_position[2];
+
+        vision_pose.pose.orientation.x = visual_slam_pose_quaternion.x();
+        vision_pose.pose.orientation.y = visual_slam_pose_quaternion.y();
+        vision_pose.pose.orientation.z = visual_slam_pose_quaternion.z();
+        vision_pose.pose.orientation.w = visual_slam_pose_quaternion.w();
+
+        if (get_time_diff(last_timestamp) > 2.0 * TIMEOUT_MAX) {
+            _odom_valid = false;
+            ROS_ERROR("Lidar Slam Timeout");
+        }
+    }
+    // 3-gazebo
+    else if (input_source == 3) {
         vision_pose.pose.position.x = gazebo_position[0];
         vision_pose.pose.position.y = gazebo_position[1];
         vision_pose.pose.position.z = gazebo_position[2];
@@ -202,7 +226,7 @@ void send_to_fcu()
         vision_pose.pose.orientation.z = gazebo_pose_quaternion.z();
         vision_pose.pose.orientation.w = gazebo_pose_quaternion.w();
     }
-    // 3-others
+    // 4-others
     // else if (input_source == 3) {
         
     // }
@@ -341,17 +365,21 @@ void mocap_cb(const geometry_msgs::PoseStamped::ConstPtr &msg)
     last_timestamp = msg->header.stamp;
 }
 
-void slam_cb(const geometry_msgs::PoseStamped::ConstPtr &msg)
+void lidar_slam_cb(const nav_msgs::Odometry::ConstPtr &msg)
 {
-    if (msg->header.frame_id == "map_slam") {
-        slam_position = Eigen::Vector3f(msg->pose.position.x, msg->pose.position.y, msg->pose.position.z);
-        slam_pose_quaternion = Eigen::Quaternionf(msg->pose.orientation.w, msg->pose.orientation.x, msg->pose.orientation.y, msg->pose.orientation.z);
+    if (msg->header.frame_id == "camera_init") {
+        lidar_slam_position = Eigen::Vector3f(msg->pose.pose.position.x, msg->pose.pose.position.y, msg->pose.pose.position.z);
+        lidar_slam_position[0] = lidar_slam_position[0] - pos_offset[0];
+        lidar_slam_position[1] = lidar_slam_position[1] - pos_offset[1];
+        lidar_slam_position[2] = lidar_slam_position[2] - pos_offset[2];
+        lidar_slam_pose_quaternion = Eigen::Quaternionf(msg->pose.pose.orientation.w, msg->pose.pose.orientation.x, msg->pose.pose.orientation.y, msg->pose.pose.orientation.z);
     }
     else {
-        ROS_WARN("Wrong SLAM Frame ID");
+        ROS_WARN("Wrong Lidar SLAM Frame ID");
     }
 
     _odom_valid = true;
+    last_timestamp = msg->header.stamp;
 }
 
 void gazebo_cb(const nav_msgs::Odometry::ConstPtr &msg)
