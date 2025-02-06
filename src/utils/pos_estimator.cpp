@@ -91,7 +91,7 @@ void gazebo_cb(const nav_msgs::Odometry::ConstPtr &msg);
 void pub_state_cb(const ros::TimerEvent &e);
 // state information
 void state_cb(const mavros_msgs::State::ConstPtr &msg);
-void extened_state_cb(const mavros_msgs::ExtendedState::ConstPtr &msg);
+void extended_state_cb(const mavros_msgs::ExtendedState::ConstPtr &msg);
 void position_pose_cb(const geometry_msgs::PoseStamped::ConstPtr &msg);
 void velocity_cb(const geometry_msgs::TwistStamped::ConstPtr& msg);
 
@@ -103,14 +103,23 @@ int main(int argc, char** argv)
     std::cout << "pos_estimator node started!" << std::endl;
 
     // load paramters from server
+    // Source of position and pose information: 0-mocap, 1-lidar_slam, 2-visual_slam, 3-gazebo, 4-others(todo)
     nh.param<int>("input_source", input_source, 0);
+    // Mocap frame type: 0-Z_up, 1-Y_up
     nh.param<int>("mocap_frame_type", mocap_frame_type, 0);
+    // Name of the rigid body
     nh.param<std::string>("rigid_body_name", rigid_body_name, "uav");
+    // Node rate in Hz
     nh.param<float>("rate_hz", rate_hz, 50);
+    // Position offset in x direction
     nh.param<float>("offset_x", pos_offset[0], 0);
+    // Position offset in y direction
     nh.param<float>("offset_y", pos_offset[1], 0);
+    // Position offset in z direction
     nh.param<float>("offset_z", pos_offset[2], 0);
+    // Yaw offset
     nh.param<float>("offset_yaw", yaw_offset, 0);
+    // UAV name
     nh.param<std::string>("uav_name", uav_name, "uav0");
 
     // subscribe topic from different position&pose sources
@@ -127,8 +136,8 @@ int main(int argc, char** argv)
     ros::Subscriber state_sub = nh.subscribe<mavros_msgs::State>
                                 ("/mavros/state", 10, state_cb);
 
-    ros::Subscriber extened_state_sub = nh.subscribe<mavros_msgs::ExtendedState>
-                                ("/mavros/extended_state", 10, extened_state_cb);
+    ros::Subscriber extended_state_sub = nh.subscribe<mavros_msgs::ExtendedState>
+                                ("/mavros/extended_state", 10, extended_state_cb);
 
     ros::Subscriber position_pose_sub = nh.subscribe<geometry_msgs::PoseStamped>
                                 ("/mavros/local_position/pose", 10, position_pose_cb);
@@ -166,7 +175,7 @@ int main(int argc, char** argv)
 void send_to_fcu()
 {
     geometry_msgs::PoseStamped vision_pose;
-    // mocap
+    // 0-mocap
     if (input_source == 0) {
         vision_pose.pose.position.x = mocap_position[0];
         vision_pose.pose.position.y = mocap_position[1];
@@ -291,9 +300,9 @@ void pub_state_cb(const ros::TimerEvent& e)
     drone_odom.pose.pose.orientation.z = drone_pose_quaternion.z();
     drone_odom.pose.pose.orientation.w = drone_pose_quaternion.w();
 
-    drone_odom.twist.twist.linear.x = drone_position.x();
-    drone_odom.twist.twist.linear.y = drone_position.y();
-    drone_odom.twist.twist.linear.z = drone_position.z();
+    drone_odom.twist.twist.linear.x = drone_velocity.x();
+    drone_odom.twist.twist.linear.y = drone_velocity.y();
+    drone_odom.twist.twist.linear.z = drone_velocity.z();
 
     odom_pub.publish(drone_odom);
 
@@ -327,10 +336,8 @@ void pub_state_cb(const ros::TimerEvent& e)
 
 inline double get_time_diff(const ros::Time &begin_time)
 {
-    ros::Time time_now = ros::Time::now();
-    double currTimeSec = time_now.sec - begin_time.sec;
-    double currTimenSec = time_now.nsec / 1e9 - begin_time.nsec / 1e9;
-    return (currTimeSec + currTimenSec);
+    ros::Duration duration = ros::Time::now() - begin_time;
+    return duration.toSec();
 }
 
 // ********** Callback Functions ********** 
@@ -401,7 +408,7 @@ void state_cb(const mavros_msgs::State::ConstPtr &msg)
     drone_mode = msg->mode;
 }
 
-void extened_state_cb(const mavros_msgs::ExtendedState::ConstPtr &msg)
+void extended_state_cb(const mavros_msgs::ExtendedState::ConstPtr &msg)
 {
     if (msg->landed_state == mavros_msgs::ExtendedState::LANDED_STATE_ON_GROUND) {
         drone_landed = true;

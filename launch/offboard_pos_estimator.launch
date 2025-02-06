@@ -1,7 +1,7 @@
 <launch>
 
     <!-- pos_estimator 参数设置 -->
-    <!-- 0-mocap 1-slam 2-gazebo 3-others -->
+    <!-- 0-mocap 1-lslam 2-vslam 3-gazebo 4-others -->
     <arg name="input_source" default="0"/>
     <!-- 0-Z_up 1-Y_up -->
     <arg name="mocap_frame_type" default="0"/>
