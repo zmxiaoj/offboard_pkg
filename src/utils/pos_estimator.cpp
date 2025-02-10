@@ -32,14 +32,19 @@ int mocap_frame_type;
 std::string rigid_body_name;
 // rate of node
 float rate_hz;
-// offset of position
-Eigen::Vector3f pos_offset;
-// offset of yaw
-float yaw_offset;
+// // offset of position
+// Eigen::Vector3f pos_offset;
+// // offset of yaw
+// float yaw_offset;
 // 
 std::string uav_name;
 // last timestamp
 ros::Time last_timestamp;
+
+// body frame to sensor frame
+Eigen::Vector3f extrinsic_translation;
+Eigen::Vector3f extrinsic_rotation;
+Eigen::Matrix4f T_body2sensor;
 
 // ********** Publisher&Messages&Paramters **********
 
@@ -87,6 +92,7 @@ inline double get_time_diff(const ros::Time &begin_time);
 // position information
 void mocap_cb(const geometry_msgs::PoseStamped::ConstPtr &msg);
 void lidar_slam_cb(const nav_msgs::Odometry::ConstPtr &msg);
+void visual_slam_cb(const geometry_msgs::PoseStamped::ConstPtr &msg);
 void gazebo_cb(const nav_msgs::Odometry::ConstPtr &msg);
 void pub_state_cb(const ros::TimerEvent &e);
 // state information
@@ -111,16 +117,40 @@ int main(int argc, char** argv)
     nh.param<std::string>("rigid_body_name", rigid_body_name, "uav");
     // Node rate in Hz
     nh.param<float>("rate_hz", rate_hz, 50);
-    // Position offset in x direction
-    nh.param<float>("offset_x", pos_offset[0], 0);
-    // Position offset in y direction
-    nh.param<float>("offset_y", pos_offset[1], 0);
-    // Position offset in z direction
-    nh.param<float>("offset_z", pos_offset[2], 0);
-    // Yaw offset
-    nh.param<float>("offset_yaw", yaw_offset, 0);
+    // // Position offset in x direction
+    // nh.param<float>("offset_x", pos_offset[0], 0);
+    // // Position offset in y direction
+    // nh.param<float>("offset_y", pos_offset[1], 0);
+    // // Position offset in z direction
+    // nh.param<float>("offset_z", pos_offset[2], 0);
+    // // Yaw offset
+    // nh.param<float>("offset_yaw", yaw_offset, 0);
     // UAV name
     nh.param<std::string>("uav_name", uav_name, "uav0");
+
+    // Loading extrinsic parameter matrix parameters
+    float extrinsic_x, extrinsic_y, extrinsic_z;
+    float extrinsic_roll, extrinsic_pitch, extrinsic_yaw;
+    
+    nh.param<float>("extrinsic_x", extrinsic_x, 0.0);
+    nh.param<float>("extrinsic_y", extrinsic_y, 0.0);
+    nh.param<float>("extrinsic_z", extrinsic_z, 0.0);
+    nh.param<float>("extrinsic_roll", extrinsic_roll, 0.0);
+    nh.param<float>("extrinsic_pitch", extrinsic_pitch, 0.0);
+    nh.param<float>("extrinsic_yaw", extrinsic_yaw, 0.0);
+
+    // Construct an extrinsic parameter matrix
+    extrinsic_translation = Eigen::Vector3f(extrinsic_x, extrinsic_y, extrinsic_z);
+    extrinsic_rotation = Eigen::Vector3f(extrinsic_roll, extrinsic_pitch, extrinsic_yaw);
+    
+    Eigen::AngleAxisf rollAngle(extrinsic_roll, Eigen::Vector3f::UnitX());
+    Eigen::AngleAxisf pitchAngle(extrinsic_pitch, Eigen::Vector3f::UnitY());
+    Eigen::AngleAxisf yawAngle(extrinsic_yaw, Eigen::Vector3f::UnitZ());
+    Eigen::Matrix3f rotation_matrix = (yawAngle * pitchAngle * rollAngle).matrix();
+    
+    T_body2sensor.setIdentity();
+    T_body2sensor.block<3,3>(0,0) = rotation_matrix;
+    T_body2sensor.block<3,1>(0,3) = extrinsic_translation;
 
     // subscribe topic from different position&pose sources
     ros::Subscriber mocap_sub = nh.subscribe<geometry_msgs::PoseStamped> 
@@ -128,6 +158,9 @@ int main(int argc, char** argv)
 
     ros::Subscriber lidar_slam_sub = nh.subscribe<nav_msgs::Odometry>
                                 ("/Odometry", 100, lidar_slam_cb);
+
+    ros::Subscriber visual_slam_sub = nh.subscribe<geometry_msgs::PoseStamped>  
+                                ("/vins_estimator/imu_propagate", 100, visual_slam_cb);
 
     ros::Subscriber gazebo_sub = nh.subscribe<nav_msgs::Odometry>
                                 ("/gazebo/ground_truth/uav", 100, gazebo_cb);
@@ -221,7 +254,7 @@ void send_to_fcu()
 
         if (get_time_diff(last_timestamp) > 2.0 * TIMEOUT_MAX) {
             _odom_valid = false;
-            ROS_ERROR("Lidar Slam Timeout");
+            ROS_ERROR("Visual Slam Timeout");
         }
     }
     // 3-gazebo
@@ -346,43 +379,96 @@ void mocap_cb(const geometry_msgs::PoseStamped::ConstPtr &msg)
     // position&pose information from mocap to mavros(ENU)
     // Frame convention 0: Z-up -- 1: Y-up (See the configuration in the motive software)
     if (mocap_frame_type == 0) {
-        // Read the Drone Position from the Vrpn Package [Frame: Vicon]  (Vicon to ENU frame)
-        mocap_position = Eigen::Vector3f(msg->pose.position.x, msg->pose.position.y, msg->pose.position.z);
-        mocap_position[0] = mocap_position[0] - pos_offset[0];
-        mocap_position[1] = mocap_position[1] - pos_offset[1];
-        mocap_position[2] = mocap_position[2] - pos_offset[2];
-        // Read the Quaternion from the Vrpn Package [Frame: Vicon[ENU]]
-        mocap_pose_quaternion = Eigen::Quaternionf(msg->pose.orientation.w, msg->pose.orientation.x, msg->pose.orientation.y, msg->pose.orientation.z);
+        // Load position and pose
+        Eigen::Vector3f pos_sensor(msg->pose.position.x, msg->pose.position.y, msg->pose.position.z);
+        Eigen::Quaternionf q_sensor(msg->pose.orientation.w, msg->pose.orientation.x, msg->pose.orientation.y, msg->pose.orientation.z);
+        
+        // Construct sensor frame to world frame transformation matrix
+        Eigen::Matrix4f T_sensor2world = Eigen::Matrix4f::Identity();
+        T_sensor2world.block<3,3>(0,0) = q_sensor.toRotationMatrix();
+        T_sensor2world.block<3,1>(0,3) = pos_sensor;
+        
+        // sensor frame to world frame transformation matrix
+        Eigen::Matrix4f T_body2world = T_sensor2world * T_body2sensor;
+        
+        // Get position&pose(quaternion) information in world frame
+        mocap_position = T_body2world.block<3,1>(0,3);
+        Eigen::Matrix3f rot_matrix = T_body2world.block<3,3>(0,0);
+        mocap_pose_quaternion = Eigen::Quaternionf(rot_matrix);
     }
     else if (mocap_frame_type == 1) {
-        // Read the Drone Position from the Vrpn Package [Frame: Vicon]  (Vicon to ENU frame)
-        mocap_position = Eigen::Vector3f(-msg->pose.position.x, msg->pose.position.z, msg->pose.position.y);
-        mocap_position[0] = mocap_position[0] - pos_offset[0];
-        mocap_position[1] = mocap_position[1] - pos_offset[1];
-        mocap_position[2] = mocap_position[2] - pos_offset[2];
-        // Read the Quaternion from the Vrpn Package [Frame: Vicon[ENU]]
-        mocap_pose_quaternion = Eigen::Quaternionf(msg->pose.orientation.w, msg->pose.orientation.x, msg->pose.orientation.z, msg->pose.orientation.y); //Y-up convention, switch the q2 & q3
+        // Load position and pose (Y-up convention)
+        Eigen::Vector3f pos_sensor(-msg->pose.position.x, msg->pose.position.z, msg->pose.position.y);
+        Eigen::Quaternionf q_sensor(msg->pose.orientation.w, msg->pose.orientation.x, msg->pose.orientation.z, msg->pose.orientation.y);
+        
+        // Construct sensor frame to world frame transformation matrix
+        Eigen::Matrix4f T_sensor2world = Eigen::Matrix4f::Identity();
+        T_sensor2world.block<3,3>(0,0) = q_sensor.toRotationMatrix();
+        T_sensor2world.block<3,1>(0,3) = pos_sensor;
+        
+        // sensor frame to world frame transformation matrix
+        Eigen::Matrix4f T_body2world = T_sensor2world * T_body2sensor;
+        
+        // Get position&pose(quaternion) information in world frame
+        mocap_position = T_body2world.block<3,1>(0,3);
+        Eigen::Matrix3f rot_matrix = T_body2world.block<3,3>(0,0);
+        mocap_pose_quaternion = Eigen::Quaternionf(rot_matrix);
     }
 
-    // Transform the Quaternion to Euler Angles
-    // Euler_mocap = quaternion_to_euler(q_mocap);
-
-    _odom_valid= true;
-    
+    _odom_valid = true;
     last_timestamp = msg->header.stamp;
 }
 
 void lidar_slam_cb(const nav_msgs::Odometry::ConstPtr &msg)
 {
     if (msg->header.frame_id == "camera_init") {
-        lidar_slam_position = Eigen::Vector3f(msg->pose.pose.position.x, msg->pose.pose.position.y, msg->pose.pose.position.z);
-        lidar_slam_position[0] = lidar_slam_position[0] - pos_offset[0];
-        lidar_slam_position[1] = lidar_slam_position[1] - pos_offset[1];
-        lidar_slam_position[2] = lidar_slam_position[2] - pos_offset[2];
-        lidar_slam_pose_quaternion = Eigen::Quaternionf(msg->pose.pose.orientation.w, msg->pose.pose.orientation.x, msg->pose.pose.orientation.y, msg->pose.pose.orientation.z);
+        // Load position and pose from lidar SLAM
+        Eigen::Vector3f pos_sensor(msg->pose.pose.position.x, msg->pose.pose.position.y, msg->pose.pose.position.z);
+        Eigen::Quaternionf q_sensor(msg->pose.pose.orientation.w, msg->pose.pose.orientation.x, msg->pose.pose.orientation.y, msg->pose.pose.orientation.z);
+        
+        // Construct sensor frame to world frame transformation matrix
+        Eigen::Matrix4f T_sensor2world = Eigen::Matrix4f::Identity();
+        T_sensor2world.block<3,3>(0,0) = q_sensor.toRotationMatrix();
+        T_sensor2world.block<3,1>(0,3) = pos_sensor;
+        
+        // sensor frame to world frame transformation matrix 
+        Eigen::Matrix4f T_body2world = T_sensor2world * T_body2sensor;
+        
+        // Get position&pose(quaternion) information in world frame
+        lidar_slam_position = T_body2world.block<3,1>(0,3);
+        Eigen::Matrix3f rot_matrix = T_body2world.block<3,3>(0,0);
+        lidar_slam_pose_quaternion = Eigen::Quaternionf(rot_matrix);
     }
     else {
         ROS_WARN("Wrong Lidar SLAM Frame ID");
+    }
+
+    _odom_valid = true;
+    last_timestamp = msg->header.stamp;
+}
+
+void visual_slam_cb(const geometry_msgs::PoseStamped::ConstPtr &msg)
+{
+    if (msg->header.frame_id == "world") {
+        // Load position and pose from visual SLAM
+        Eigen::Vector3f pos_sensor(msg->pose.position.x, msg->pose.position.y, msg->pose.position.z);
+        Eigen::Quaternionf q_sensor(msg->pose.orientation.w, msg->pose.orientation.x, msg->pose.orientation.y, msg->pose.orientation.z);
+        
+        // Construct sensor frame to world frame transformation matrix
+        Eigen::Matrix4f T_sensor2world = Eigen::Matrix4f::Identity();
+        T_sensor2world.block<3,3>(0,0) = q_sensor.toRotationMatrix();
+        T_sensor2world.block<3,1>(0,3) = pos_sensor;
+        
+        // sensor frame to world frame transformation matrix 
+        Eigen::Matrix4f T_body2world = T_sensor2world * T_body2sensor;
+        
+        // Get position&pose(quaternion) information in world frame
+        visual_slam_position = T_body2world.block<3,1>(0,3);
+        Eigen::Matrix3f rot_matrix = T_body2world.block<3,3>(0,0);
+        visual_slam_pose_quaternion = Eigen::Quaternionf(rot_matrix);
+    }
+    else {
+        ROS_WARN("Wrong Visual SLAM Frame ID");
     }
 
     _odom_valid = true;

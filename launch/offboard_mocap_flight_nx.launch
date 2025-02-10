@@ -55,13 +55,9 @@
     <arg name="mocap_frame_type" default="0"/>
     <arg name="rigid_body_name" default="uav"/>
     <arg name="rate_hz" default="50"/>
-    <arg name="offset_x" default="0"/>
-    <arg name="offset_y" default="0"/>
-    <arg name="offset_z" default="0"/>
-    <arg name="offset_yaw" default="0"/>
 
-    <!-- 使用topic_tools中的throttle对指定topic进行限流 -->
-    <!-- <node pkg="topic_tools" type="throttle" name="vrpn_pose_throttle" args="messages /vrpn_client_node/$(arg rigid_body_name)/pose 50 /vrpn_client_node/$(arg rigid_body_name)/pose_throttled"/> -->
+    <!-- 加载外参配置文件 -->
+    <rosparam command="load" file="$(find offboard_pkg)/config/extrinsic_params.yaml"/>
 
     <!-- 启动 pos_estimator 节点 -->
     <node pkg="offboard_pkg" type="pos_estimator" name="pos_estimator_node" output="screen">
@@ -70,12 +66,15 @@
         <param name="mocap_frame_type" value="$(arg mocap_frame_type)"/>
         <param name="rigid_body_name" value="$(arg rigid_body_name)"/>
         <param name="rate_hz" value="$(arg rate_hz)"/>
-        <param name="offset_x" value="$(arg offset_x)"/>
-        <param name="offset_y" value="$(arg offset_y)"/>
-        <param name="offset_z" value="$(arg offset_z)"/>
-        <param name="offset_yaw" value="$(arg offset_yaw)"/>
-        <!-- remap topic, subcribe <to_topic> instead <from_topic> -->
-        <!-- <remap from="/vrpn_client_node/$(arg rigid_body_name)/pose" to="/vrpn_client_node/$(arg rigid_body_name)/pose_throttled"/> -->
+        <!-- 通过remap从yaml文件中获取外参 -->
+        <rosparam subst_value="true">
+            extrinsic_x: $(eval rosparam.get('/extrinsic_params/x'))
+            extrinsic_y: $(eval rosparam.get('/extrinsic_params/y'))
+            extrinsic_z: $(eval rosparam.get('/extrinsic_params/z'))
+            extrinsic_roll: $(eval rosparam.get('/extrinsic_params/roll'))
+            extrinsic_pitch: $(eval rosparam.get('/extrinsic_params/pitch'))
+            extrinsic_yaw: $(eval rosparam.get('/extrinsic_params/yaw'))
+        </rosparam>
     </node>
 
     <!-- Enable/disable options -->
