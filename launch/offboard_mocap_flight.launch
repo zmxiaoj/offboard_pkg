@@ -66,15 +66,13 @@
         <param name="mocap_frame_type" value="$(arg mocap_frame_type)"/>
         <param name="rigid_body_name" value="$(arg rigid_body_name)"/>
         <param name="rate_hz" value="$(arg rate_hz)"/>
-        <!-- 通过remap从yaml文件中获取外参 -->
-        <rosparam subst_value="true">
-            extrinsic_x: $(eval rosparam.get('/extrinsic_params/x'))
-            extrinsic_y: $(eval rosparam.get('/extrinsic_params/y'))
-            extrinsic_z: $(eval rosparam.get('/extrinsic_params/z'))
-            extrinsic_roll: $(eval rosparam.get('/extrinsic_params/roll'))
-            extrinsic_pitch: $(eval rosparam.get('/extrinsic_params/pitch'))
-            extrinsic_yaw: $(eval rosparam.get('/extrinsic_params/yaw'))
-        </rosparam>
+        <!-- 直接使用yaml中加载的参数命名空间 -->
+        <remap from="~extrinsic_x" to="/extrinsic_params/x"/>
+        <remap from="~extrinsic_y" to="/extrinsic_params/y"/>
+        <remap from="~extrinsic_z" to="/extrinsic_params/z"/>
+        <remap from="~extrinsic_roll" to="/extrinsic_params/roll"/>
+        <remap from="~extrinsic_pitch" to="/extrinsic_params/pitch"/>
+        <remap from="~extrinsic_yaw" to="/extrinsic_params/yaw"/>
     </node>
     
     <!-- rosbag 参数设置 -->
