@@ -45,6 +45,7 @@ ros::Time last_timestamp;
 Eigen::Vector3f extrinsic_translation;
 Eigen::Vector3f extrinsic_rotation;
 Eigen::Matrix4f T_body2sensor;
+Eigen::Matrix4f T_sensor2body;
 
 // ********** Publisher&Messages&Paramters **********
 
@@ -151,6 +152,9 @@ int main(int argc, char** argv)
     T_body2sensor.setIdentity();
     T_body2sensor.block<3,3>(0,0) = rotation_matrix;
     T_body2sensor.block<3,1>(0,3) = extrinsic_translation;
+
+    // 构建传感器到机体的变换矩阵（外参矩阵的逆）
+    T_sensor2body = T_body2sensor.inverse();
 
     // subscribe topic from different position&pose sources
     ros::Subscriber mocap_sub = nh.subscribe<geometry_msgs::PoseStamped> 
@@ -384,16 +388,16 @@ void mocap_cb(const geometry_msgs::PoseStamped::ConstPtr &msg)
         Eigen::Quaternionf q_sensor(msg->pose.orientation.w, msg->pose.orientation.x, msg->pose.orientation.y, msg->pose.orientation.z);
         
         // Construct sensor frame to world frame transformation matrix
-        Eigen::Matrix4f T_sensor2world = Eigen::Matrix4f::Identity();
-        T_sensor2world.block<3,3>(0,0) = q_sensor.toRotationMatrix();
-        T_sensor2world.block<3,1>(0,3) = pos_sensor;
+        Eigen::Matrix4f T_world2sensor = Eigen::Matrix4f::Identity();
+        T_world2sensor.block<3,3>(0,0) = q_sensor.toRotationMatrix();
+        T_world2sensor.block<3,1>(0,3) = pos_sensor;
         
-        // sensor frame to world frame transformation matrix
-        Eigen::Matrix4f T_body2world = T_sensor2world * T_body2sensor;
+        // Transform from sensor frame to body frame
+        Eigen::Matrix4f T_world2body = T_sensor2body * T_world2sensor;
         
         // Get position&pose(quaternion) information in world frame
-        mocap_position = T_body2world.block<3,1>(0,3);
-        Eigen::Matrix3f rot_matrix = T_body2world.block<3,3>(0,0);
+        mocap_position = T_world2body.block<3,1>(0,3);
+        Eigen::Matrix3f rot_matrix = T_world2body.block<3,3>(0,0);
         mocap_pose_quaternion = Eigen::Quaternionf(rot_matrix);
     }
     else if (mocap_frame_type == 1) {
@@ -402,16 +406,16 @@ void mocap_cb(const geometry_msgs::PoseStamped::ConstPtr &msg)
         Eigen::Quaternionf q_sensor(msg->pose.orientation.w, msg->pose.orientation.x, msg->pose.orientation.z, msg->pose.orientation.y);
         
         // Construct sensor frame to world frame transformation matrix
-        Eigen::Matrix4f T_sensor2world = Eigen::Matrix4f::Identity();
-        T_sensor2world.block<3,3>(0,0) = q_sensor.toRotationMatrix();
-        T_sensor2world.block<3,1>(0,3) = pos_sensor;
+        Eigen::Matrix4f T_world2sensor = Eigen::Matrix4f::Identity();
+        T_world2sensor.block<3,3>(0,0) = q_sensor.toRotationMatrix();
+        T_world2sensor.block<3,1>(0,3) = pos_sensor;
         
-        // sensor frame to world frame transformation matrix
-        Eigen::Matrix4f T_body2world = T_sensor2world * T_body2sensor;
+        // Transform from sensor frame to body frame
+        Eigen::Matrix4f T_world2body = T_sensor2body * T_world2sensor;
         
         // Get position&pose(quaternion) information in world frame
-        mocap_position = T_body2world.block<3,1>(0,3);
-        Eigen::Matrix3f rot_matrix = T_body2world.block<3,3>(0,0);
+        mocap_position = T_world2body.block<3,1>(0,3);
+        Eigen::Matrix3f rot_matrix = T_world2body.block<3,3>(0,0);
         mocap_pose_quaternion = Eigen::Quaternionf(rot_matrix);
     }
 
@@ -427,16 +431,16 @@ void lidar_slam_cb(const nav_msgs::Odometry::ConstPtr &msg)
         Eigen::Quaternionf q_sensor(msg->pose.pose.orientation.w, msg->pose.pose.orientation.x, msg->pose.pose.orientation.y, msg->pose.pose.orientation.z);
         
         // Construct sensor frame to world frame transformation matrix
-        Eigen::Matrix4f T_sensor2world = Eigen::Matrix4f::Identity();
-        T_sensor2world.block<3,3>(0,0) = q_sensor.toRotationMatrix();
-        T_sensor2world.block<3,1>(0,3) = pos_sensor;
+        Eigen::Matrix4f T_world2sensor = Eigen::Matrix4f::Identity();
+        T_world2sensor.block<3,3>(0,0) = q_sensor.toRotationMatrix();
+        T_world2sensor.block<3,1>(0,3) = pos_sensor;
         
-        // sensor frame to world frame transformation matrix 
-        Eigen::Matrix4f T_body2world = T_sensor2world * T_body2sensor;
+        // Transform from sensor frame to body frame
+        Eigen::Matrix4f T_world2body = T_sensor2body * T_world2sensor;
         
         // Get position&pose(quaternion) information in world frame
-        lidar_slam_position = T_body2world.block<3,1>(0,3);
-        Eigen::Matrix3f rot_matrix = T_body2world.block<3,3>(0,0);
+        lidar_slam_position = T_world2body.block<3,1>(0,3);
+        Eigen::Matrix3f rot_matrix = T_world2body.block<3,3>(0,0);
         lidar_slam_pose_quaternion = Eigen::Quaternionf(rot_matrix);
     }
     else {
@@ -455,16 +459,16 @@ void visual_slam_cb(const geometry_msgs::PoseStamped::ConstPtr &msg)
         Eigen::Quaternionf q_sensor(msg->pose.orientation.w, msg->pose.orientation.x, msg->pose.orientation.y, msg->pose.orientation.z);
         
         // Construct sensor frame to world frame transformation matrix
-        Eigen::Matrix4f T_sensor2world = Eigen::Matrix4f::Identity();
-        T_sensor2world.block<3,3>(0,0) = q_sensor.toRotationMatrix();
-        T_sensor2world.block<3,1>(0,3) = pos_sensor;
+        Eigen::Matrix4f T_world2sensor = Eigen::Matrix4f::Identity();
+        T_world2sensor.block<3,3>(0,0) = q_sensor.toRotationMatrix();
+        T_world2sensor.block<3,1>(0,3) = pos_sensor;
         
-        // sensor frame to world frame transformation matrix 
-        Eigen::Matrix4f T_body2world = T_sensor2world * T_body2sensor;
+        // Transform from sensor frame to body frame
+        Eigen::Matrix4f T_world2body = T_sensor2body * T_world2sensor;
         
         // Get position&pose(quaternion) information in world frame
-        visual_slam_position = T_body2world.block<3,1>(0,3);
-        Eigen::Matrix3f rot_matrix = T_body2world.block<3,3>(0,0);
+        visual_slam_position = T_world2body.block<3,1>(0,3);
+        Eigen::Matrix3f rot_matrix = T_world2body.block<3,3>(0,0);
         visual_slam_pose_quaternion = Eigen::Quaternionf(rot_matrix);
     }
     else {
