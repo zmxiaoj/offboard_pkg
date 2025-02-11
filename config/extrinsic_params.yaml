@@ -1,11 +1,26 @@
-
 # Extrinsic parameters from body frame to sensor frame
 extrinsic_params:
-  # Translation (meters)
-  x: 0.0
-  y: 0.0
-  z: 0.0
-  # Rotation (radians)
-  roll: 0.0
-  pitch: 0.0
-  yaw: 0.0
+  # Parameter type: 0-euler_angles, 1-rotation_matrix
+  type: 0
+  
+  # Type 0: Euler angles and translation vector
+  euler:
+    # Translation (meters)
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    # Rotation (radians)
+    roll: 0.0
+    pitch: 0.0
+    yaw: 0.0
+  
+  # Type 1: Rotation matrix and translation vector
+  matrix:
+    # Translation (meters)
+    translation: [0.06, 0.0, -0.04]
+    # Rotation matrix (3x3)
+    rotation: [
+       0.0,  0.0, 1.0,
+      -1.0,  0.0, 0.0,
+       0.0, -1.0, 0.0
+    ]

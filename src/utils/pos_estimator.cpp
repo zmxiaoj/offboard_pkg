@@ -32,10 +32,6 @@ int mocap_frame_type;
 std::string rigid_body_name;
 // rate of node
 float rate_hz;
-// // offset of position
-// Eigen::Vector3f pos_offset;
-// // offset of yaw
-// float yaw_offset;
 // 
 std::string uav_name;
 // last timestamp
@@ -46,6 +42,9 @@ Eigen::Vector3f extrinsic_translation;
 Eigen::Vector3f extrinsic_rotation;
 Eigen::Matrix4f T_body2sensor;
 Eigen::Matrix4f T_sensor2body;
+
+// extrinsic type
+int extrinsic_type;
 
 // ********** Publisher&Messages&Paramters **********
 
@@ -93,7 +92,7 @@ inline double get_time_diff(const ros::Time &begin_time);
 // position information
 void mocap_cb(const geometry_msgs::PoseStamped::ConstPtr &msg);
 void lidar_slam_cb(const nav_msgs::Odometry::ConstPtr &msg);
-void visual_slam_cb(const geometry_msgs::PoseStamped::ConstPtr &msg);
+void visual_slam_cb(const nav_msgs::Odometry::ConstPtr &msg);
 void gazebo_cb(const nav_msgs::Odometry::ConstPtr &msg);
 void pub_state_cb(const ros::TimerEvent &e);
 // state information
@@ -118,42 +117,55 @@ int main(int argc, char** argv)
     nh.param<std::string>("rigid_body_name", rigid_body_name, "uav");
     // Node rate in Hz
     nh.param<float>("rate_hz", rate_hz, 50);
-    // // Position offset in x direction
-    // nh.param<float>("offset_x", pos_offset[0], 0);
-    // // Position offset in y direction
-    // nh.param<float>("offset_y", pos_offset[1], 0);
-    // // Position offset in z direction
-    // nh.param<float>("offset_z", pos_offset[2], 0);
-    // // Yaw offset
-    // nh.param<float>("offset_yaw", yaw_offset, 0);
+
     // UAV name
     nh.param<std::string>("uav_name", uav_name, "uav0");
 
-    // Loading extrinsic parameter matrix parameters
-    float extrinsic_x, extrinsic_y, extrinsic_z;
-    float extrinsic_roll, extrinsic_pitch, extrinsic_yaw;
+    // extrinsic type
+    nh.param<int>("extrinsic_type", extrinsic_type, 0);
     
-    nh.param<float>("extrinsic_x", extrinsic_x, 0.0);
-    nh.param<float>("extrinsic_y", extrinsic_y, 0.0);
-    nh.param<float>("extrinsic_z", extrinsic_z, 0.0);
-    nh.param<float>("extrinsic_roll", extrinsic_roll, 0.0);
-    nh.param<float>("extrinsic_pitch", extrinsic_pitch, 0.0);
-    nh.param<float>("extrinsic_yaw", extrinsic_yaw, 0.0);
+    if (extrinsic_type == 0) {
+        // euler
+        float extrinsic_x, extrinsic_y, extrinsic_z;
+        float extrinsic_roll, extrinsic_pitch, extrinsic_yaw;
+        
+        nh.param<float>("euler/x", extrinsic_x, 0.0);
+        nh.param<float>("euler/y", extrinsic_y, 0.0);
+        nh.param<float>("euler/z", extrinsic_z, 0.0);
+        nh.param<float>("euler/roll", extrinsic_roll, 0.0);
+        nh.param<float>("euler/pitch", extrinsic_pitch, 0.0);
+        nh.param<float>("euler/yaw", extrinsic_yaw, 0.0);
 
-    // Construct an extrinsic parameter matrix
-    extrinsic_translation = Eigen::Vector3f(extrinsic_x, extrinsic_y, extrinsic_z);
-    extrinsic_rotation = Eigen::Vector3f(extrinsic_roll, extrinsic_pitch, extrinsic_yaw);
-    
-    Eigen::AngleAxisf rollAngle(extrinsic_roll, Eigen::Vector3f::UnitX());
-    Eigen::AngleAxisf pitchAngle(extrinsic_pitch, Eigen::Vector3f::UnitY());
-    Eigen::AngleAxisf yawAngle(extrinsic_yaw, Eigen::Vector3f::UnitZ());
-    Eigen::Matrix3f rotation_matrix = (yawAngle * pitchAngle * rollAngle).matrix();
-    
-    T_body2sensor.setIdentity();
-    T_body2sensor.block<3,3>(0,0) = rotation_matrix;
-    T_body2sensor.block<3,1>(0,3) = extrinsic_translation;
+        extrinsic_translation = Eigen::Vector3f(extrinsic_x, extrinsic_y, extrinsic_z);
+        
+        Eigen::AngleAxisf rollAngle(extrinsic_roll, Eigen::Vector3f::UnitX());
+        Eigen::AngleAxisf pitchAngle(extrinsic_pitch, Eigen::Vector3f::UnitY());
+        Eigen::AngleAxisf yawAngle(extrinsic_yaw, Eigen::Vector3f::UnitZ());
+        Eigen::Matrix3f rotation_matrix = (yawAngle * pitchAngle * rollAngle).matrix();
+        
+        T_body2sensor.setIdentity();
+        T_body2sensor.block<3,3>(0,0) = rotation_matrix;
+        T_body2sensor.block<3,1>(0,3) = extrinsic_translation;
+    }
+    else if (extrinsic_type == 1) {
+        // rotation matrix
+        std::vector<double> translation, rotation;
+        nh.param<std::vector<double>>("matrix/translation", translation, {0,0,0});
+        nh.param<std::vector<double>>("matrix/rotation", rotation, {1,0,0,0,1,0,0,0,1});
+        
+        extrinsic_translation = Eigen::Vector3f(translation[0], translation[1], translation[2]);
+        
+        Eigen::Matrix3f rotation_matrix;
+        for(int i = 0; i < 9; i++) {
+            rotation_matrix(i/3, i%3) = rotation[i];
+        }
+        
+        T_body2sensor.setIdentity();
+        T_body2sensor.block<3,3>(0,0) = rotation_matrix;
+        T_body2sensor.block<3,1>(0,3) = extrinsic_translation;
+    }
 
-    // 构建传感器到机体的变换矩阵（外参矩阵的逆）
+    // inverse
     T_sensor2body = T_body2sensor.inverse();
 
     // subscribe topic from different position&pose sources
@@ -163,7 +175,7 @@ int main(int argc, char** argv)
     ros::Subscriber lidar_slam_sub = nh.subscribe<nav_msgs::Odometry>
                                 ("/Odometry", 100, lidar_slam_cb);
 
-    ros::Subscriber visual_slam_sub = nh.subscribe<geometry_msgs::PoseStamped>  
+    ros::Subscriber visual_slam_sub = nh.subscribe<nav_msgs::Odometry>  
                                 ("/vins_estimator/imu_propagate", 100, visual_slam_cb);
 
     ros::Subscriber gazebo_sub = nh.subscribe<nav_msgs::Odometry>
@@ -451,12 +463,12 @@ void lidar_slam_cb(const nav_msgs::Odometry::ConstPtr &msg)
     last_timestamp = msg->header.stamp;
 }
 
-void visual_slam_cb(const geometry_msgs::PoseStamped::ConstPtr &msg)
+void visual_slam_cb(const nav_msgs::Odometry::ConstPtr &msg)
 {
     if (msg->header.frame_id == "world") {
         // Load position and pose from visual SLAM
-        Eigen::Vector3f pos_sensor(msg->pose.position.x, msg->pose.position.y, msg->pose.position.z);
-        Eigen::Quaternionf q_sensor(msg->pose.orientation.w, msg->pose.orientation.x, msg->pose.orientation.y, msg->pose.orientation.z);
+        Eigen::Vector3f pos_sensor(msg->pose.pose.position.x, msg->pose.pose.position.y, msg->pose.pose.position.z);
+        Eigen::Quaternionf q_sensor(msg->pose.pose.orientation.w, msg->pose.pose.orientation.x, msg->pose.pose.orientation.y, msg->pose.pose.orientation.z);
         
         // Construct sensor frame to world frame transformation matrix
         Eigen::Matrix4f T_world2sensor = Eigen::Matrix4f::Identity();

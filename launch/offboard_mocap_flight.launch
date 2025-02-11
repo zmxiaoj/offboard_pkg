@@ -67,12 +67,9 @@
         <param name="rigid_body_name" value="$(arg rigid_body_name)"/>
         <param name="rate_hz" value="$(arg rate_hz)"/>
         <!-- 直接使用yaml中加载的参数命名空间 -->
-        <remap from="~extrinsic_x" to="/extrinsic_params/x"/>
-        <remap from="~extrinsic_y" to="/extrinsic_params/y"/>
-        <remap from="~extrinsic_z" to="/extrinsic_params/z"/>
-        <remap from="~extrinsic_roll" to="/extrinsic_params/roll"/>
-        <remap from="~extrinsic_pitch" to="/extrinsic_params/pitch"/>
-        <remap from="~extrinsic_yaw" to="/extrinsic_params/yaw"/>
+        <param name="extrinsic_type" value="/extrinsic_params/type"/>
+        <remap from="~euler" to="/extrinsic_params/euler"/>
+        <remap from="~matrix" to="/extrinsic_params/matrix"/>
     </node>
     
     <!-- rosbag 参数设置 -->
