@@ -46,6 +46,17 @@ Eigen::Matrix4f T_sensor2body;
 // extrinsic type
 int extrinsic_type;
 
+// Extrinsic parameters for different sources
+struct ExtrinsicParams {
+    int type;
+    Eigen::Matrix4f T_body2sensor;
+    Eigen::Matrix4f T_sensor2body;
+};
+
+ExtrinsicParams mocap_extrinsic;
+ExtrinsicParams lidar_extrinsic;
+ExtrinsicParams camera_extrinsic;
+
 // ********** Publisher&Messages&Paramters **********
 
 // publisher for transfer information to fcu
@@ -87,6 +98,10 @@ void send_to_fcu();
 
 inline double get_time_diff(const ros::Time &begin_time);
 
+void loadMocapExtrinsic(ros::NodeHandle& nh);
+void loadLidarExtrinsic(ros::NodeHandle& nh);
+void loadCameraExtrinsic(ros::NodeHandle& nh);
+
 // ********** Callback Functions **********
 
 // position information
@@ -124,49 +139,28 @@ int main(int argc, char** argv)
     // extrinsic type
     nh.param<int>("extrinsic_type", extrinsic_type, 0);
     
-    if (extrinsic_type == 0) {
-        // euler
-        float extrinsic_x, extrinsic_y, extrinsic_z;
-        float extrinsic_roll, extrinsic_pitch, extrinsic_yaw;
-        
-        nh.param<float>("euler/x", extrinsic_x, 0.0);
-        nh.param<float>("euler/y", extrinsic_y, 0.0);
-        nh.param<float>("euler/z", extrinsic_z, 0.0);
-        nh.param<float>("euler/roll", extrinsic_roll, 0.0);
-        nh.param<float>("euler/pitch", extrinsic_pitch, 0.0);
-        nh.param<float>("euler/yaw", extrinsic_yaw, 0.0);
-
-        extrinsic_translation = Eigen::Vector3f(extrinsic_x, extrinsic_y, extrinsic_z);
-        
-        Eigen::AngleAxisf rollAngle(extrinsic_roll, Eigen::Vector3f::UnitX());
-        Eigen::AngleAxisf pitchAngle(extrinsic_pitch, Eigen::Vector3f::UnitY());
-        Eigen::AngleAxisf yawAngle(extrinsic_yaw, Eigen::Vector3f::UnitZ());
-        Eigen::Matrix3f rotation_matrix = (yawAngle * pitchAngle * rollAngle).matrix();
-        
-        T_body2sensor.setIdentity();
-        T_body2sensor.block<3,3>(0,0) = rotation_matrix;
-        T_body2sensor.block<3,1>(0,3) = extrinsic_translation;
+    // 根据input_source加载对应的外参
+    switch(input_source) {
+        case 0: // mocap
+            loadMocapExtrinsic(nh);
+            T_body2sensor = mocap_extrinsic.T_body2sensor;
+            T_sensor2body = mocap_extrinsic.T_sensor2body;
+            break;
+        case 1: // lidar
+            loadLidarExtrinsic(nh);
+            T_body2sensor = lidar_extrinsic.T_body2sensor;
+            T_sensor2body = lidar_extrinsic.T_sensor2body;
+            break;
+        case 2: // camera
+            loadCameraExtrinsic(nh);
+            T_body2sensor = camera_extrinsic.T_body2sensor;
+            T_sensor2body = camera_extrinsic.T_sensor2body;
+            break;
+        default:
+            ROS_WARN("Unknown input source, using identity transform");
+            T_body2sensor.setIdentity();
+            T_sensor2body.setIdentity();
     }
-    else if (extrinsic_type == 1) {
-        // rotation matrix
-        std::vector<double> translation, rotation;
-        nh.param<std::vector<double>>("matrix/translation", translation, {0,0,0});
-        nh.param<std::vector<double>>("matrix/rotation", rotation, {1,0,0,0,1,0,0,0,1});
-        
-        extrinsic_translation = Eigen::Vector3f(translation[0], translation[1], translation[2]);
-        
-        Eigen::Matrix3f rotation_matrix;
-        for(int i = 0; i < 9; i++) {
-            rotation_matrix(i/3, i%3) = rotation[i];
-        }
-        
-        T_body2sensor.setIdentity();
-        T_body2sensor.block<3,3>(0,0) = rotation_matrix;
-        T_body2sensor.block<3,1>(0,3) = extrinsic_translation;
-    }
-
-    // inverse
-    T_sensor2body = T_body2sensor.inverse();
 
     // subscribe topic from different position&pose sources
     ros::Subscriber mocap_sub = nh.subscribe<geometry_msgs::PoseStamped> 
@@ -529,4 +523,117 @@ void position_pose_cb(const geometry_msgs::PoseStamped::ConstPtr &msg)
 void velocity_cb(const geometry_msgs::TwistStamped::ConstPtr& msg)
 {
     drone_velocity = Eigen::Vector3f(msg->twist.linear.x, msg->twist.linear.y, msg->twist.linear.z);
+}
+
+void loadMocapExtrinsic(ros::NodeHandle& nh) {
+    nh.param<int>("/mocap_extrinsic/type", mocap_extrinsic.type, 0);
+    
+    if (mocap_extrinsic.type == 0) {
+        // euler
+        float x, y, z, roll, pitch, yaw;
+        nh.param<float>("/mocap_extrinsic/euler/x", x, 0.0);
+        nh.param<float>("/mocap_extrinsic/euler/y", y, 0.0);
+        nh.param<float>("/mocap_extrinsic/euler/z", z, 0.0);
+        nh.param<float>("/mocap_extrinsic/euler/roll", roll, 0.0);
+        nh.param<float>("/mocap_extrinsic/euler/pitch", pitch, 0.0);
+        nh.param<float>("/mocap_extrinsic/euler/yaw", yaw, 0.0);
+
+        // matrix
+        Eigen::Vector3f translation(x, y, z);
+        Eigen::AngleAxisf rollAngle(roll, Eigen::Vector3f::UnitX());
+        Eigen::AngleAxisf pitchAngle(pitch, Eigen::Vector3f::UnitY());
+        Eigen::AngleAxisf yawAngle(yaw, Eigen::Vector3f::UnitZ());
+        Eigen::Matrix3f rotation = (yawAngle * pitchAngle * rollAngle).matrix();
+
+        mocap_extrinsic.T_body2sensor.setIdentity();
+        mocap_extrinsic.T_body2sensor.block<3,3>(0,0) = rotation;
+        mocap_extrinsic.T_body2sensor.block<3,1>(0,3) = translation;
+    }
+    else if (mocap_extrinsic.type == 1) {
+        std::vector<double> translation, rotation;
+        nh.param<std::vector<double>>("/mocap_extrinsic/matrix/translation", translation, {0,0,0});
+        nh.param<std::vector<double>>("/mocap_extrinsic/matrix/rotation", rotation, {1,0,0,0,1,0,0,0,1});
+        
+        mocap_extrinsic.T_body2sensor.setIdentity();
+        mocap_extrinsic.T_body2sensor.block<3,1>(0,3) = Eigen::Vector3f(translation[0], translation[1], translation[2]);
+        for(int i = 0; i < 9; i++) {
+            mocap_extrinsic.T_body2sensor.block<3,3>(0,0)(i/3, i%3) = rotation[i];
+        }
+    }
+    mocap_extrinsic.T_sensor2body = mocap_extrinsic.T_body2sensor.inverse();
+    ROS_INFO("Loaded Mocap extrinsic parameters, type: %d", mocap_extrinsic.type);
+}
+
+void loadLidarExtrinsic(ros::NodeHandle& nh) {
+    nh.param<int>("/lidar_extrinsic/type", lidar_extrinsic.type, 0);
+    
+    if (lidar_extrinsic.type == 0) {
+        float x, y, z, roll, pitch, yaw;
+        nh.param<float>("/lidar_extrinsic/euler/x", x, 0.0);
+        nh.param<float>("/lidar_extrinsic/euler/y", y, 0.0);
+        nh.param<float>("/lidar_extrinsic/euler/z", z, 0.0);
+        nh.param<float>("/lidar_extrinsic/euler/roll", roll, 0.0);
+        nh.param<float>("/lidar_extrinsic/euler/pitch", pitch, 0.0);
+        nh.param<float>("/lidar_extrinsic/euler/yaw", yaw, 0.0);
+
+        Eigen::Vector3f translation(x, y, z);
+        Eigen::AngleAxisf rollAngle(roll, Eigen::Vector3f::UnitX());
+        Eigen::AngleAxisf pitchAngle(pitch, Eigen::Vector3f::UnitY());
+        Eigen::AngleAxisf yawAngle(yaw, Eigen::Vector3f::UnitZ());
+        Eigen::Matrix3f rotation = (yawAngle * pitchAngle * rollAngle).matrix();
+
+        lidar_extrinsic.T_body2sensor.setIdentity();
+        lidar_extrinsic.T_body2sensor.block<3,3>(0,0) = rotation;
+        lidar_extrinsic.T_body2sensor.block<3,1>(0,3) = translation;
+    }
+    else if (lidar_extrinsic.type == 1) {
+        std::vector<double> translation, rotation;
+        nh.param<std::vector<double>>("/lidar_extrinsic/matrix/translation", translation, {0,0,0});
+        nh.param<std::vector<double>>("/lidar_extrinsic/matrix/rotation", rotation, {1,0,0,0,1,0,0,0,1});
+        
+        lidar_extrinsic.T_body2sensor.setIdentity();
+        lidar_extrinsic.T_body2sensor.block<3,1>(0,3) = Eigen::Vector3f(translation[0], translation[1], translation[2]);
+        for(int i = 0; i < 9; i++) {
+            lidar_extrinsic.T_body2sensor.block<3,3>(0,0)(i/3, i%3) = rotation[i];
+        }
+    }
+    lidar_extrinsic.T_sensor2body = lidar_extrinsic.T_body2sensor.inverse();
+    ROS_INFO("Loaded LiDAR extrinsic parameters, type: %d", lidar_extrinsic.type);
+}
+
+void loadCameraExtrinsic(ros::NodeHandle& nh) {
+    nh.param<int>("/camera_extrinsic/type", camera_extrinsic.type, 0);
+    
+    if (camera_extrinsic.type == 0) {
+        float x, y, z, roll, pitch, yaw;
+        nh.param<float>("/camera_extrinsic/euler/x", x, 0.0);
+        nh.param<float>("/camera_extrinsic/euler/y", y, 0.0);
+        nh.param<float>("/camera_extrinsic/euler/z", z, 0.0);
+        nh.param<float>("/camera_extrinsic/euler/roll", roll, 0.0);
+        nh.param<float>("/camera_extrinsic/euler/pitch", pitch, 0.0);
+        nh.param<float>("/camera_extrinsic/euler/yaw", yaw, 0.0);
+
+        Eigen::Vector3f translation(x, y, z);
+        Eigen::AngleAxisf rollAngle(roll, Eigen::Vector3f::UnitX());
+        Eigen::AngleAxisf pitchAngle(pitch, Eigen::Vector3f::UnitY());
+        Eigen::AngleAxisf yawAngle(yaw, Eigen::Vector3f::UnitZ());
+        Eigen::Matrix3f rotation = (yawAngle * pitchAngle * rollAngle).matrix();
+
+        camera_extrinsic.T_body2sensor.setIdentity();
+        camera_extrinsic.T_body2sensor.block<3,3>(0,0) = rotation;
+        camera_extrinsic.T_body2sensor.block<3,1>(0,3) = translation;
+    }
+    else if (camera_extrinsic.type == 1) {
+        std::vector<double> translation, rotation;
+        nh.param<std::vector<double>>("/camera_extrinsic/matrix/translation", translation, {0,0,0});
+        nh.param<std::vector<double>>("/camera_extrinsic/matrix/rotation", rotation, {1,0,0,0,1,0,0,0,1});
+        
+        camera_extrinsic.T_body2sensor.setIdentity();
+        camera_extrinsic.T_body2sensor.block<3,1>(0,3) = Eigen::Vector3f(translation[0], translation[1], translation[2]);
+        for(int i = 0; i < 9; i++) {
+            camera_extrinsic.T_body2sensor.block<3,3>(0,0)(i/3, i%3) = rotation[i];
+        }
+    }
+    camera_extrinsic.T_sensor2body = camera_extrinsic.T_body2sensor.inverse();
+    ROS_INFO("Loaded Camera extrinsic parameters, type: %d", camera_extrinsic.type);
 }

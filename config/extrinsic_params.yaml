@@ -1,26 +1,60 @@
-# Extrinsic parameters from body frame to sensor frame
-extrinsic_params:
+# Extrinsic parameters from body frame to different sensors
+
+# Motion Capture System (0-mocap)
+mocap_extrinsic:
   # Parameter type: 0-euler_angles, 1-rotation_matrix
   type: 0
-  
-  # Type 0: Euler angles and translation vector
   euler:
-    # Translation (meters)
     x: 0.0
     y: 0.0
     z: 0.0
-    # Rotation (radians)
     roll: 0.0
     pitch: 0.0
     yaw: 0.0
-  
-  # Type 1: Rotation matrix and translation vector
   matrix:
-    # Translation (meters)
-    translation: [0.06, 0.0, -0.04]
-    # Rotation matrix (3x3)
+    translation: [0.0, 0.0, 0.0]
     rotation: [
-       0.0, -1.0,  0.0,
-       0.0,  0.0, -1.0,
-       1.0,  0.0,  0.0
+      1.0, 0.0, 0.0,
+      0.0, 1.0, 0.0,
+      0.0, 0.0, 1.0
+    ]
+
+# LiDAR SLAM (1-lidar)
+lidar_extrinsic:
+  # Parameter type: 1-rotation_matrix (LiDAR usually uses rotation matrix)
+  type: 0
+  euler:
+    x: 0.0
+    y: 0.0
+    z: 0.2
+    roll: 0.0
+    pitch: 0.0
+    yaw: 0.0
+  matrix:
+    # From body center to LiDAR imu 
+    translation: [0.0, 0.0, 0.0]
+    rotation: [
+      1.0, 0.0, 0.0,
+      0.0, 1.0, 0.0,
+      0.0, 0.0, 1.0
+    ]
+
+# Visual SLAM Camera (2-visual)
+camera_extrinsic:
+  # Parameter type: 1
+  type: 1
+  euler:
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    roll: 0.0
+    pitch: 0.0
+    yaw: 0.0
+  matrix:
+    # From body center to camera imu
+    translation: [0.06, 0.0, -0.04]
+    rotation: [
+       0.0, 1.0, 0.0,
+      -1.0, 0.0, 0.0,
+       0.0, 0.0, 1.0
     ]
