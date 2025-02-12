@@ -464,11 +464,17 @@ void visual_slam_cb(const nav_msgs::Odometry::ConstPtr &msg)
         Eigen::Vector3f pos_sensor(msg->pose.pose.position.x, msg->pose.pose.position.y, msg->pose.pose.position.z);
         Eigen::Quaternionf q_sensor(msg->pose.pose.orientation.w, msg->pose.pose.orientation.x, msg->pose.pose.orientation.y, msg->pose.pose.orientation.z);
         
+        // For vins realsense D455/D435i
+        Eigen::Matrix3f R_body2world;
+        R_body2world << 1.0,  0.0,  0.0,
+                        0.0,  0.0,  1.0,
+                        0.0, -1.0,  0.0;
+        
         // Construct sensor frame to world frame transformation matrix
         Eigen::Matrix4f T_world2sensor = Eigen::Matrix4f::Identity();
-        T_world2sensor.block<3,3>(0,0) = q_sensor.toRotationMatrix();
+        T_world2sensor.block<3,3>(0,0) = R_body2world * q_sensor.toRotationMatrix();
         T_world2sensor.block<3,1>(0,3) = pos_sensor;
-        
+
         // Transform from sensor frame to body frame
         Eigen::Matrix4f T_world2body = T_sensor2body * T_world2sensor;
         
