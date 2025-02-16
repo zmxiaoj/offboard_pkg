@@ -1,6 +1,13 @@
 <launch>
     <!-- VINS-Fusion configuration -->
-    <arg name="config_path" default = "$(find vins)/../config/realsense_d455/realsense_stereo_imu_config.yaml" />
+    <!-- IMU source selection -->
+    <arg name="imu_source" default="d455" doc="Options: 'd455' for RealSense, 'px4' for PX4 IMU"/>
+    
+    <!-- Config path based on IMU source -->
+    <arg name="config_path" default="$(eval find('vins') + '/../config/realsense_d455/' + 
+         ('realsense_stereo_imu_config.yaml' if arg('imu_source')=='d455' else 
+          'realsense_stereo_px4_imu_config.yaml'))"/>
+    
     <arg name="vins_path" default = "$(find vins)/../results" />
     <!-- Enable/disable options -->
     <arg name="enable_loop_closure" default="false"/>

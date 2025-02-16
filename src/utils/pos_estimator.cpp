@@ -471,8 +471,8 @@ void visual_slam_cb(const nav_msgs::Odometry::ConstPtr &msg)
 
         // For vins realsense D455/D435i
         Eigen::Matrix3f R_body2map;
-        R_body2map <<  0.0,  -1.0,  0.0,
-                       1.0,  0.0,  0.0,
+        R_body2map <<  0.0,  1.0,  0.0,
+                       -1.0,  0.0,  0.0,
                        0.0,  0.0,  1.0;
         Eigen::Matrix4f T_body2map = Eigen::Matrix4f::Identity();
         T_body2map.block<3,3>(0,0) = R_body2map;
