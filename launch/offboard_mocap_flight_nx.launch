@@ -18,6 +18,7 @@
         <param name="log_output" value="$(arg log_output)"/>
         <param name="fcu_protocol" value="$(arg fcu_protocol)"/>
         <param name="fcu_protrespawn_mavrosocol" value="$(arg respawn_mavros)"/>
+        <param name="imu/rate" value="200.0"/>
     </node>
 
     <!-- vrpn 参数设置 -->
