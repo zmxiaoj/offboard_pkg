@@ -1,0 +1,8 @@
+<launch>
+    <rosparam command="load" file="$(find offboard_pkg)/config/extrinsic_params.yaml"/>
+
+    <node pkg="offboard_pkg" type="pose_pub.py" name="pose_pub" output="screen">
+        <!-- 如果需要重映射话题 -->
+        <!-- <remap from="/vins/transformed_pose" to="/mavros/vision_pose/pose"/> -->
+    </node>
+</launch>
