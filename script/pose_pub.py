@@ -39,8 +39,8 @@ class VinsPoseTransformer:
         # VINS坐标系到map坐标系的基础变换
         # 这个变换将VINS的相机坐标系对齐到ENU坐标系
         self.R_cam2map = np.array([
+            [ 1.0,  0.0,  0.0],
             [ 0.0,  1.0,  0.0],
-            [-1.0,  0.0,  0.0],
             [ 0.0,  0.0,  1.0]
         ])
         

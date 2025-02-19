@@ -52,9 +52,9 @@ camera_extrinsic:
     yaw: 0.0
   matrix:
     # From body center to camera imu
-    translation: [0.06, 0.0, -0.04]
-    rotation: [
-       0.0, 1.0, 0.0,
-      -1.0, 0.0, 0.0,
-       0.0, 0.0, 1.0
-    ]
+    # For vins realsense D455/D435i to px4
+    translation: [0.0, 0.0, 0.0]
+    rotation:             
+          [  0.0,  1.0,  0.0,
+            -1.0,  0.0,  0.0,
+             0.0,  0.0,  1.0]
