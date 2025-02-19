@@ -472,7 +472,7 @@ void visual_slam_cb(const nav_msgs::Odometry::ConstPtr &msg)
         T_world2sensor.block<3,1>(0,3) = pos_sensor;
 
         // Transform from sensor frame to body frame
-        Eigen::Matrix4f T_world2body = T_sensor2body * T_world2sensor;
+        Eigen::Matrix4f T_world2body = T_world2sensor * T_sensor2body;
         
         // Get position&pose(quaternion) information in world frame
         visual_slam_position.x() = T_world2body(1, 3);
