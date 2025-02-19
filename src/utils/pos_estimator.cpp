@@ -461,7 +461,7 @@ void visual_slam_cb(const nav_msgs::Odometry::ConstPtr &msg)
 {
     if (msg->header.frame_id == "world") {
         // Load position and pose from visual SLAM
-        Eigen::Vector3f pos_sensor(msg->pose.pose.position.x, msg->pose.pose.position.y, msg->pose.pose.position.z);
+        Eigen::Vector3f pos_sensor(msg->pose.pose.position.y, -msg->pose.pose.position.x, msg->pose.pose.position.z);
         Eigen::Quaternionf q_sensor(msg->pose.pose.orientation.w, msg->pose.pose.orientation.x, msg->pose.pose.orientation.y, msg->pose.pose.orientation.z);
         
         // Construct sensor frame to world frame transformation matrix
