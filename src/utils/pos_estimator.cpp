@@ -431,6 +431,7 @@ void mocap_cb(const geometry_msgs::PoseStamped::ConstPtr &msg)
 
 void lidar_slam_cb(const nav_msgs::Odometry::ConstPtr &msg)
 {
+    // For FAST-LIO2
     if (msg->header.frame_id == "camera_init") {
         // Load position and pose from lidar SLAM
         Eigen::Vector3f pos_sensor(msg->pose.pose.position.x, msg->pose.pose.position.y, msg->pose.pose.position.z);
@@ -459,9 +460,10 @@ void lidar_slam_cb(const nav_msgs::Odometry::ConstPtr &msg)
 
 void visual_slam_cb(const nav_msgs::Odometry::ConstPtr &msg)
 {
+    // For VINS-Fusion
     if (msg->header.frame_id == "world") {
         // Load position and pose from visual SLAM
-        Eigen::Vector3f pos_sensor(msg->pose.pose.position.y, -msg->pose.pose.position.x, msg->pose.pose.position.z);
+        Eigen::Vector3f pos_sensor(msg->pose.pose.position.x, msg->pose.pose.position.y, msg->pose.pose.position.z);
         Eigen::Quaternionf q_sensor(msg->pose.pose.orientation.w, msg->pose.pose.orientation.x, msg->pose.pose.orientation.y, msg->pose.pose.orientation.z);
         
         // Construct sensor frame to world frame transformation matrix
@@ -473,7 +475,9 @@ void visual_slam_cb(const nav_msgs::Odometry::ConstPtr &msg)
         Eigen::Matrix4f T_world2body = T_sensor2body * T_world2sensor;
         
         // Get position&pose(quaternion) information in world frame
-        visual_slam_position = T_world2body.block<3,1>(0,3);
+        visual_slam_position.x() = T_world2body(1, 3);
+        visual_slam_position.y() = -T_world2body(0, 3);
+        visual_slam_position.z() = T_world2body(2, 3);
         Eigen::Matrix3f rot_matrix = T_world2body.block<3,3>(0,0);
         visual_slam_pose_quaternion = Eigen::Quaternionf(rot_matrix);
     }
