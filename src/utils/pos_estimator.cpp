@@ -197,7 +197,7 @@ int main(int argc, char** argv)
     trajectory_pub = nh.advertise<nav_msgs::Path>("/visualization/trajectory", 10);
 
     // timer for print message show node is running correctly
-    ros::Timer pub_state_timer = nh.createTimer(ros::Duration(1.0), pub_state_cb);
+    ros::Timer pub_state_timer = nh.createTimer(ros::Duration(0.25), pub_state_cb);
 
     ros::Rate rate(rate_hz);
 
@@ -472,12 +472,13 @@ void visual_slam_cb(const nav_msgs::Odometry::ConstPtr &msg)
         T_world2sensor.block<3,1>(0,3) = pos_sensor;
 
         // Transform from sensor frame to body frame
-        Eigen::Matrix4f T_world2body = T_world2sensor * T_sensor2body;
+        // Eigen::Matrix4f T_world2body = T_world2sensor * T_sensor2body;
+        Eigen::Matrix4f T_world2body = T_sensor2body * T_world2sensor;
         
         // Get position&pose(quaternion) information in world frame
-        visual_slam_position.x() = T_world2body(1, 3);
-        visual_slam_position.y() = -T_world2body(0, 3);
-        visual_slam_position.z() = T_world2body(2, 3);
+        visual_slam_position[0] = T_world2body(1, 3);
+        visual_slam_position[1] = -T_world2body(0, 3);
+        visual_slam_position[2] = T_world2body(2, 3);
         Eigen::Matrix3f rot_matrix = T_world2body.block<3,3>(0,0);
         visual_slam_pose_quaternion = Eigen::Quaternionf(rot_matrix);
     }

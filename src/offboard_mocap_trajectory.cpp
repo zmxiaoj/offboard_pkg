@@ -709,6 +709,14 @@ void publishPoseAndSetpoint(const geometry_msgs::PoseStamped& current_pose,
 void printPoseInfo(const geometry_msgs::PoseStamped& current_pose, 
                    const geometry_msgs::PoseStamped& setpoint_pose) 
 {
+    // Add these variables for log print
+    static ros::Time last_print_time = ros::Time::now();
+    const double print_interval = 0.2; // Print every 0.2 second
+    
+    if (ros::Time::now() - last_print_time < ros::Duration(print_interval)) {
+        return;
+    }
+
     std::string traj_type;
     switch(trajectory_type) {
         case TrajectoryType::LANDING: 
@@ -779,4 +787,6 @@ void printPoseInfo(const geometry_msgs::PoseStamped& current_pose,
         << " | z: " << setpoint_pose.pose.position.z - current_pose.pose.position.z
         << "\n================================================\n";
     ROS_INFO_STREAM(ss.str());
+
+    last_print_time = ros::Time::now();
 }
