@@ -53,15 +53,15 @@ camera_extrinsic:
   matrix:
     # From body center to camera imu
     # For vins realsense D455/D435i to px4
-    # translation: [0.0, 0.0, 0.0]
-    # rotation:             
-    #       [  0.0,  1.0,  0.0,
-    #          -1.0,  0.0,  0.0,
-    #          0.0,  0.0,  1.0]
-    
-    # For realsense D455/D435i & px4_imu
     translation: [0.0, 0.0, 0.0]
     rotation:             
-          [  1.0,  0.0,  0.0,
-             0.0,  1.0,  0.0,
+          [  0.0,  1.0,  0.0,
+             -1.0,  0.0,  0.0,
              0.0,  0.0,  1.0]
+    
+    # For realsense D455/D435i & px4_imu
+    # translation: [0.0, 0.0, 0.0]
+    # rotation:             
+    #       [  1.0,  0.0,  0.0,
+    #          0.0,  1.0,  0.0,
+    #          0.0,  0.0,  1.0]

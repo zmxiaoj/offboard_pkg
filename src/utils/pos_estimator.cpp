@@ -475,9 +475,9 @@ void visual_slam_cb(const nav_msgs::Odometry::ConstPtr &msg)
         // Eigen::Matrix4f T_world2body = T_world2sensor * T_sensor2body;
         Eigen::Matrix4f T_world2body = T_sensor2body * T_world2sensor;
         
-        // Get position&pose(quaternion) information in world frame
-        visual_slam_position[0] = T_world2body(1, 3);
-        visual_slam_position[1] = -T_world2body(0, 3);
+        // For px4_imu
+        visual_slam_position[0] = T_world2body(0, 3);
+        visual_slam_position[1] = T_world2body(1, 3);
         visual_slam_position[2] = T_world2body(2, 3);
         Eigen::Matrix3f rot_matrix = T_world2body.block<3,3>(0,0);
         visual_slam_pose_quaternion = Eigen::Quaternionf(rot_matrix);
